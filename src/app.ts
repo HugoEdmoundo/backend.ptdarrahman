@@ -3,7 +3,7 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
 import { apiReference } from '@scalar/hono-api-reference'
-import { readFileSync } from 'fs'
+import { openapiSpec } from './openapi'
 
 import authRoutes from './auth/routes'
 import companyprofileRoutes from './companyprofile/routes'
@@ -42,14 +42,11 @@ app.route('/courts', courtsRoutes)
 app.route('/inventories', inventoriesRoutes)
 
 // OpenAPI JSON
-app.get('/openapi.json', (c) => {
-  const spec = JSON.parse(readFileSync('openapi.json', 'utf-8'))
-  return c.json(spec)
-})
+app.get('/openapi.json', (c) => c.json(openapiSpec))
 
 // Scalar API docs
 app.get('/scalar', apiReference({
-  spec: { url: '/openapi.json' },
+  spec: { content: openapiSpec },
   pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
 }))
 

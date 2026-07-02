@@ -1,0 +1,7 @@
+{
+  "installCommand": "npm install",
+  "buildCommand": "npx tsc --noEmit",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.ts" }
+  ]
+}

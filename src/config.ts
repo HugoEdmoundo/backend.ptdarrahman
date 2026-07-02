@@ -1,5 +1,3 @@
-import 'dotenv/config'
-
 export const config = {
   jwtSecret: process.env.JWT_SECRET || '',
   jwtAlgorithm: 'HS256' as const,
