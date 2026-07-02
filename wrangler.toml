@@ -1,0 +1,9 @@
+name = "backend-ptdarrahman"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+JWT_EXPIRY_HOURS = "24"
+
+[env.production]
+vars = { JWT_EXPIRY_HOURS = "24" }
