@@ -2,6 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
+import { apiReference } from '@scalar/hono-api-reference'
+import { readFileSync } from 'fs'
+
 import authRoutes from './auth/routes'
 import companyprofileRoutes from './companyprofile/routes'
 import usersRoutes from './users/routes'
@@ -9,6 +12,11 @@ import rolesRoutes from './roles/routes'
 import superadminRoutes from './superadmin/routes'
 import sppRoutes from './spp/routes'
 import studentsRoutes from './students/routes'
+import teachersRoutes from './teachers/routes'
+import visitsRoutes from './visits/routes'
+import canteensRoutes from './canteens/routes'
+import courtsRoutes from './courts/routes'
+import inventoriesRoutes from './inventories/routes'
 
 const app = new Hono()
 
@@ -27,6 +35,23 @@ app.route('/roles', rolesRoutes)
 app.route('/superadmin', superadminRoutes)
 app.route('/spp', sppRoutes)
 app.route('/students', studentsRoutes)
+app.route('/teachers', teachersRoutes)
+app.route('/visits', visitsRoutes)
+app.route('/canteens', canteensRoutes)
+app.route('/courts', courtsRoutes)
+app.route('/inventories', inventoriesRoutes)
+
+// OpenAPI JSON
+app.get('/openapi.json', (c) => {
+  const spec = JSON.parse(readFileSync('openapi.json', 'utf-8'))
+  return c.json(spec)
+})
+
+// Scalar API docs
+app.get('/scalar', apiReference({
+  spec: { url: '/openapi.json' },
+  pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
+}))
 
 // Health check
 app.get('/', (c) => c.json({
