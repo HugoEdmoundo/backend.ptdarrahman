@@ -14,8 +14,12 @@ const MAGIC_BYTES: Record<string, number[]> = {
 const ALLOWED_TYPES = new Set(Object.keys(MAGIC_BYTES))
 
 function ensureDir(dir: string): void {
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true })
+    }
+  } catch (e) {
+    console.error('Failed to create directory:', dir, e)
   }
 }
 
