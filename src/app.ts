@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
+import companyprofileRoutes from './companyprofile/routes'
+
 const app = new Hono()
 
 app.use('*', cors({
@@ -16,6 +18,9 @@ app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
   status: 'ok'
 }))
+
+// Routes
+app.route('/companyprofile', companyprofileRoutes)
 
 // Error handler
 app.onError((err, c) => {
