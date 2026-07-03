@@ -2,6 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
+import { apiReference } from '@scalar/hono-api-reference'
+import { openapiSpec } from './openapi'
+
 import companyprofileRoutes from './companyprofile/routes'
 
 const app = new Hono()
@@ -17,6 +20,15 @@ app.use('*', cors({
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
   status: 'ok'
+}))
+
+// OpenAPI JSON
+app.get('/openapi.json', (c) => c.json(openapiSpec))
+
+// Scalar API docs
+app.get('/scalar', apiReference({
+  spec: { content: openapiSpec },
+  pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
 }))
 
 // Routes
