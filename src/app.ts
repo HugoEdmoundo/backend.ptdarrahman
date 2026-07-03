@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
 import companyprofileRoutes from './companyprofile/routes'
+import { openapiSpec } from './openapi'
 
 const app = new Hono()
 
@@ -19,16 +20,8 @@ app.get('/', (c) => c.json({
   status: 'ok'
 }))
 
-// OpenAPI JSON - lazy load
-app.get('/openapi.json', async (c) => {
-  try {
-    const { openapiSpec } = await import('./openapi')
-    return c.json(openapiSpec)
-  } catch (e) {
-    console.error('Failed to load OpenAPI spec:', e)
-    return c.json({ error: 'Failed to load OpenAPI spec' }, 500)
-  }
-})
+// OpenAPI JSON
+app.get('/openapi.json', (c) => c.json(openapiSpec))
 
 // Swagger UI documentation
 app.get('/docs', async (c) => {
