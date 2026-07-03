@@ -117,7 +117,7 @@ cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string()
 cp.post('/auth/logout', getCurrentUser, async (c) => {
   const user = c.get('user')
   const pool = (await import('../db/mysql')).getRawPool()
-  await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id])
+  await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id] as any)
   return c.json({ message: 'Logged out' })
 })
 
@@ -162,7 +162,7 @@ cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: 
   if (Object.keys(data).length > 0) await updateRecord('users', user.id as string, data)
   if (body.new_password) {
     const pool = (await import('../db/mysql')).getRawPool()
-    const [rows] = await pool.execute('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id])
+    const [rows] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id] as any)
     for (const row of rows) await updateRecord('refresh_tokens', row.id, { revoked: true })
   }
   const response = { ...user, ...data }

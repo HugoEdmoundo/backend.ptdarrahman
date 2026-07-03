@@ -104,6 +104,91 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
         throw new HTTPException(500, { message: 'Internal Server Error' });
     }
 });
+cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string() })), async (c) => {
+    const body = c.req.valid('json');
+    const tokenHash = await import('../auth/auth').then(m => m.hashRefreshToken(body.refresh_token));
+    const stored = await getByColumn('refresh_tokens', 'token_hash', tokenHash);
+    if (!stored || stored.revoked)
+        throw new HTTPException(401, { message: 'Invalid refresh token' });
+    const expires = stored.expires_at;
+    if (expires) {
+        const expiresDt = new Date(expires.replace('Z', '+00:00'));
+        if (expiresDt < new Date())
+            throw new HTTPException(401, { message: 'Refresh token expired' });
+    }
+    const user = await getById('users', stored.user_id);
+    if (!user || user.is_active === false)
+        throw new HTTPException(401, { message: 'User not found or inactive' });
+    await updateRecord('refresh_tokens', stored.id, { revoked: true });
+    const newAccess = await createAccessToken({ sub: user.id });
+    const { raw: rawRefresh, hash: newHash, expiresAt: newExpires } = generateRefreshToken();
+    await createRecord('refresh_tokens', { user_id: user.id, token_hash: newHash, expires_at: newExpires.toISOString() });
+    return c.json({ access_token: newAccess, refresh_token: rawRefresh, token_type: 'bearer' });
+});
+cp.post('/auth/logout', getCurrentUser, async (c) => {
+    const user = c.get('user');
+    const pool = (await import('../db/mysql')).getRawPool();
+    await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id]);
+    return c.json({ message: 'Logged out' });
+});
+cp.get('/auth/me', getCurrentUser, async (c) => {
+    const user = c.get('user');
+    let roleName = '';
+    let rolePermissions = {};
+    const roleId = user.role_id;
+    if (roleId) {
+        const role = await getById('roles', roleId);
+        if (role) {
+            roleName = role.name;
+            rolePermissions = role.permissions || {};
+        }
+    }
+    return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, user_type: user.user_type || 'admin', is_active: user.is_active ?? true });
+});
+cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: z.string().optional(), email: z.string().optional(), full_name: z.string().optional(), avatar_url: z.string().optional(), old_password: z.string().optional(), new_password: z.string().optional() })), async (c) => {
+    const body = c.req.valid('json');
+    const user = c.get('user');
+    const { verifyPassword, hashPassword } = await import('../auth/auth');
+    const data = {};
+    if (body.username !== undefined)
+        data.username = body.username;
+    if (body.email !== undefined)
+        data.email = body.email;
+    if (body.full_name !== undefined)
+        data.full_name = body.full_name;
+    if (body.avatar_url !== undefined)
+        data.avatar_url = body.avatar_url;
+    if (body.new_password) {
+        if (!body.old_password)
+            throw new HTTPException(400, { message: 'Old password is required' });
+        if (!verifyPassword(body.old_password, user.password_hash))
+            throw new HTTPException(400, { message: 'Old password is incorrect' });
+        data.password_hash = hashPassword(body.new_password);
+    }
+    if (data.email) {
+        if (user.user_type !== 'superadmin')
+            throw new HTTPException(403, { message: 'Only superadmin can change email' });
+        const existing = await getByColumn('users', 'email', data.email);
+        if (existing && existing.id !== user.id)
+            throw new HTTPException(400, { message: 'Email already in use' });
+    }
+    if (data.username) {
+        const existing = await getByColumn('users', 'username', data.username);
+        if (existing && existing.id !== user.id)
+            throw new HTTPException(400, { message: 'Username already in use' });
+    }
+    if (Object.keys(data).length > 0)
+        await updateRecord('users', user.id, data);
+    if (body.new_password) {
+        const pool = (await import('../db/mysql')).getRawPool();
+        const [rows] = await pool.execute('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id]);
+        for (const row of rows)
+            await updateRecord('refresh_tokens', row.id, { revoked: true });
+    }
+    const response = { ...user, ...data };
+    delete response.password_hash;
+    return c.json(response);
+});
 // ── Public ────────────────────────────────────────────────
 cp.get('/settings', async (c) => {
     c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
