@@ -30,19 +30,43 @@ app.get('/openapi.json', async (c) => {
   }
 })
 
-// Scalar API docs - lazy load to avoid Vercel crash
-app.get('/scalar', async (c) => {
-  try {
-    const { apiReference } = await import('@scalar/hono-api-reference')
-    const { openapiSpec } = await import('./openapi')
-    return apiReference({
-      spec: { content: openapiSpec },
-      pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
-    })(c)
-  } catch (e) {
-    console.error('Failed to load Scalar:', e)
-    return c.json({ error: 'Failed to load Scalar UI' }, 500)
-  }
+// Swagger UI - simple HTML page with Swagger UI
+app.get('/docs', async (c) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pesantren Tahfidz Qur'an dan Digital Arrahman API</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      const ui = SwaggerUIBundle({
+        url: '/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ],
+        layout: "BaseLayout",
+        defaultModelsExpandDepth: 1,
+        defaultModelExpandDepth: 1
+      });
+    }
+  </script>
+</body>
+</html>
+  `
+  return c.html(html)
 })
 
 // Routes
