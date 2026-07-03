@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
-import { apiReference } from '@scalar/hono-api-reference'
 
 import companyprofileRoutes from './companyprofile/routes'
 
@@ -71,10 +70,31 @@ app.get('/docs', async (c) => {
 })
 
 // Scalar API Reference
-app.get('/scalar', apiReference({
-  pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
-  spec: { url: '/openapi.json' },
-}))
+app.get('/scalar', async (c) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pesantren Tahfidz Qur'an dan Digital Arrahman API</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  <script>
+    Scalar.createApiReference('#app', {
+      spec: { url: '/openapi.json' }
+    })
+  </script>
+</body>
+</html>
+  `
+  return c.html(html)
+})
 
 // Routes
 app.route('/companyprofile', companyprofileRoutes)
