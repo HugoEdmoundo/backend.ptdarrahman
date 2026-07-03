@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { getCurrentUser, requireSuperadmin } from '../middleware/auth'
-import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/supabase'
+import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/mysql'
 import { hashPassword } from '../auth/auth'
 import type { Variables } from '../types'
 

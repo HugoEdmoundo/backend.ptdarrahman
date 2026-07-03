@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { getCurrentUser, requireSuperadmin } from '../middleware/auth'
-import { listAll, getById, createRecord, updateRecord, deleteRecord } from '../db/supabase'
+import { listAll, getById, createRecord, updateRecord, deleteRecord } from '../db/mysql'
 import type { Variables } from '../types'
 
 const roles = new Hono<{ Variables: Variables }>()

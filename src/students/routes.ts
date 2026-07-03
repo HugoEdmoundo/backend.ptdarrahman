@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { getCurrentUser } from '../middleware/auth'
-import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/supabase'
+import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/mysql'
 import type { Variables } from '../types'
 
 const students = new Hono<{ Variables: Variables }>()

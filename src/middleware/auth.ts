@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { verifyToken } from '../auth/auth'
-import { getById } from '../db/supabase'
+import { getById } from '../db/mysql'
 import type { Variables } from '../types'
 
 export async function getCurrentUser(c: Context<{ Variables: Variables }>, next: Next) {

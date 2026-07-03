@@ -50,6 +50,31 @@ app.get('/scalar', apiReference({
   pageTitle: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
 }))
 
+// Serve uploaded files
+const UPLOAD_DIR = process.env.VERCEL ? '/tmp/uploads' : (process.env.UPLOAD_DIR || 'uploads')
+
+app.get('/uploads/:filename', async (c) => {
+  const filename = c.req.param('filename')
+  if (filename.includes('..') || filename.includes('/')) {
+    return c.json({ detail: 'Invalid filename' }, 400)
+  }
+  try {
+    const { readFileSync, existsSync } = await import('fs')
+    const { join } = await import('path')
+    const filePath = join(UPLOAD_DIR, filename)
+    if (!existsSync(filePath)) {
+      return c.json({ detail: 'File not found' }, 404)
+    }
+    const content = readFileSync(filePath)
+    const ext = filename.split('.').pop()?.toLowerCase()
+    const mime: Record<string, string> = { webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif' }
+    return c.body(content, 200, { 'Content-Type': mime[ext || ''] || 'application/octet-stream' })
+  } catch (e) {
+    console.error('Failed to serve upload:', e)
+    return c.json({ detail: 'File not found' }, 404)
+  }
+})
+
 // Health check
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",

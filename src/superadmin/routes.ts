@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getCurrentUser, requireSuperadmin } from '../middleware/auth'
-import { searchPaginated } from '../db/supabase'
+import { searchPaginated } from '../db/mysql'
 import type { Variables } from '../types'
 
 const superadmin = new Hono<{ Variables: Variables }>()

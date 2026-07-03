@@ -18,8 +18,8 @@ import {
   createRecord,
   updateRecord,
   auditLog,
-  getRawClient,
-} from '../db/supabase'
+  getRawPool,
+} from '../db/mysql'
 import { publicUrl, saveUpload } from '../storage'
 import type { Variables } from '../types'
 
@@ -236,12 +236,10 @@ auth.put('/profile', getCurrentUser, zValidator('json', profileSchema), async (c
   }
 
   if (body.new_password) {
-    const client = getRawClient()
-    const { data: tokens } = await client.from('refresh_tokens').select('id').eq('user_id', user.id as string)
-    if (tokens) {
-      for (const t of tokens) {
-        await updateRecord('refresh_tokens', t.id, { revoked: true })
-      }
+    const pool = getRawPool()
+    const [rows] = await pool.execute<import('mysql2/promise').RowDataPacket[]>('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id] as any)
+    for (const row of rows) {
+      await updateRecord('refresh_tokens', row.id, { revoked: true })
     }
   }
 
@@ -294,8 +292,8 @@ auth.post('/register', getCurrentUser, zValidator('json', loginSchema), async (c
 
 auth.post('/logout', getCurrentUser, async (c) => {
   const user = c.get('user')
-  const client = getRawClient()
-  await client.from('refresh_tokens').update({ revoked: true }).eq('user_id', user.id as string)
+  const pool = getRawPool()
+  await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id] as any)
   return c.json({ message: 'Logged out' })
 })
 

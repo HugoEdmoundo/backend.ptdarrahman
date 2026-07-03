@@ -1,4 +1,4 @@
-import { getById } from '../db/supabase'
+import { getById } from '../db/mysql'
 
 export enum AccessLevel {
   NONE = 'none',

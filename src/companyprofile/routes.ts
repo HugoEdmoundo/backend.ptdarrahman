@@ -9,7 +9,7 @@ import { getCurrentUser } from '../middleware/auth'
 import {
   listAll, getByColumn, getById, getBySlug, getFirst,
   createRecord, updateRecord, deleteRecord,
-} from '../db/supabase'
+} from '../db/mysql'
 import { deleteUpload, publicUrl, saveUpload } from '../storage'
 import type { Variables } from '../types'
 
