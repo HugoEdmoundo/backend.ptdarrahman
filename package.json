@@ -9,7 +9,6 @@
     "deploy:cf": "wrangler deploy"
   },
   "dependencies": {
-    "@hono/node-server": "^1.0.0",
     "@hono/zod-validator": "^0.8.0",
     "@scalar/hono-api-reference": "^0.11.8",
     "bcryptjs": "^2.4.3",
@@ -26,5 +25,8 @@
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

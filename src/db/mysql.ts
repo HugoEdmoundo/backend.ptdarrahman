@@ -15,8 +15,11 @@ function getPool(): Pool {
       password: config.mysqlPassword,
       database: config.mysqlDatabase,
       waitForConnections: true,
-      connectionLimit: 5,
+      connectionLimit: 1,
       queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } as any : undefined,
     })
   }
   return _pool

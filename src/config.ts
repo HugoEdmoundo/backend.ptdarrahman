@@ -9,13 +9,3 @@ export const config = {
   mysqlDatabase: process.env.MYSQL_DATABASE || '',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
 }
-
-if (!config.jwtSecret) {
-  console.error('JWT_SECRET is not set!')
-}
-if (config.jwtSecret === 'change-me-in-production') {
-  console.error('JWT_SECRET is still the default value!')
-}
-if (!config.mysqlHost || !config.mysqlUser || !config.mysqlPassword || !config.mysqlDatabase) {
-  console.warn('MySQL credentials are not fully configured!')
-}
