@@ -3,4 +3,5 @@ dist/
 .env
 .wrangler/
 api/*.js
+src/**/*.js
 *.js.map

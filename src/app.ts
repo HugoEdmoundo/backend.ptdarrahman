@@ -5,6 +5,8 @@ import { HTTPException } from 'hono/http-exception'
 import companyprofileRoutes from './companyprofile/routes'
 import { openapiSpec } from './openapi'
 
+const isProduction = !!process.env.VERCEL
+
 const app = new Hono()
 
 app.use('*', cors({
@@ -20,13 +22,30 @@ app.get('/', (c) => c.json({
   status: 'ok',
   docs: {
     openapi: '/openapi.json',
-    swagger_ui: 'https://petstore.swagger.io/?url=https://backend-ptdarrahman.vercel.app/openapi.json',
-    scalar: 'https://scalar.refine.dev?apiUrl=https://backend-ptdarrahman.vercel.app/openapi.json',
+    ...(!isProduction && {
+      swagger_ui: '/ui',
+      scalar: '/scalar',
+    }),
   }
 }))
 
-// OpenAPI JSON
+// OpenAPI JSON (always available)
 app.get('/openapi.json', (c) => c.json(openapiSpec))
+
+// Docs UI (local dev only — these packages crash on Vercel's serverless runtime)
+if (!isProduction) {
+  try {
+    // @ts-ignore — devDependency, only loaded locally
+    const { swaggerUI } = require('@hono/swagger-ui')
+    app.get('/ui', swaggerUI({ url: '/openapi.json' }))
+  } catch { /* package not available */ }
+
+  try {
+    // @ts-ignore — devDependency, only loaded locally
+    const { Scalar } = require('@scalar/hono-api-reference')
+    app.get('/scalar', Scalar({ url: '/openapi.json' }))
+  } catch { /* package not available */ }
+}
 
 // Routes
 app.route('/companyprofile', companyprofileRoutes)
