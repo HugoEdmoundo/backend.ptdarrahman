@@ -3,7 +3,6 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 
 import companyprofileRoutes from './companyprofile/routes'
-import { openapiSpec } from './openapi'
 
 const app = new Hono()
 
@@ -18,11 +17,13 @@ app.use('*', cors({
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
   status: 'ok',
-  docs: '/openapi.json',
 }))
 
 // OpenAPI JSON
-app.get('/openapi.json', (c) => c.json(openapiSpec))
+app.get('/openapi.json', async (c) => {
+  const { openapiSpec } = await import('./openapi')
+  return c.json(openapiSpec)
+})
 
 // Routes
 app.route('/companyprofile', companyprofileRoutes)
