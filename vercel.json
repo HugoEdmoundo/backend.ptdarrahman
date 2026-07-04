@@ -1,8 +1,4 @@
 {
-  "rewrites": [
-    { "source": "/", "destination": "/api/" },
-    { "source": "/(.*)", "destination": "/api/$1" }
-  ],
   "functions": {
     "api/[[route]].ts": {
       "memory": 256,
