@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "tsc",
+    "build": "echo 'no build needed'",
     "deploy:cf": "wrangler deploy"
   },
   "dependencies": {
