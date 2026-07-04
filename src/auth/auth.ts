@@ -1,9 +1,13 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 import { config } from '../config'
 
-const secret = new TextEncoder().encode(config.jwtSecret)
+let _secret: Uint8Array | null = null
+function getSecret(): Uint8Array {
+  if (!_secret) _secret = new TextEncoder().encode(config.jwtSecret)
+  return _secret
+}
 
 export function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 12)
@@ -18,13 +22,13 @@ export async function createAccessToken(data: Record<string, unknown>): Promise<
     .setProtectedHeader({ alg: config.jwtAlgorithm })
     .setExpirationTime(`${config.jwtExpiryHours}h`)
     .setIssuedAt()
-    .setJti(crypto.randomUUID())
-    .sign(secret)
+    .setJti(randomUUID())
+    .sign(getSecret())
 }
 
 export async function verifyToken(token: string): Promise<Record<string, unknown> | null> {
   try {
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await jwtVerify(token, getSecret())
     return payload as Record<string, unknown>
   } catch {
     return null
@@ -32,7 +36,7 @@ export async function verifyToken(token: string): Promise<Record<string, unknown
 }
 
 export function generateRefreshToken(): { raw: string; hash: string; expiresAt: Date } {
-  const raw = crypto.randomUUID() + crypto.randomUUID()
+  const raw = randomUUID() + randomUUID()
   const hash = hashSHA256(raw)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   return { raw, hash, expiresAt }
@@ -43,5 +47,5 @@ export function hashRefreshToken(raw: string): string {
 }
 
 function hashSHA256(str: string): string {
-  return crypto.createHash('sha256').update(str).digest('hex')
+  return createHash('sha256').update(str).digest('hex')
 }

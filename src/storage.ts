@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { config } from './config'
@@ -52,7 +53,7 @@ export async function saveUpload(file: File): Promise<string> {
   const detected = detectMime(content)
   if (!detected) throw new Error('File content does not match allowed image types')
 
-  const name = `${crypto.randomUUID()}.webp`
+  const name = `${randomUUID()}.webp`
   const dir = getUploadDir()
   const filePath = join(dir, name)
   writeFileSync(filePath, Buffer.from(content))

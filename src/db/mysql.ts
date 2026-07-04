@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import mysql, { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import { config } from '../config'
 
@@ -30,6 +31,7 @@ function utcnow(): string {
 }
 
 const PK_TABLES = new Set(['site_settings'])
+const NO_UPDATED_AT = new Set(['refresh_tokens', 'audit_log'])
 
 type Row = Record<string, unknown>
 
@@ -87,10 +89,10 @@ export async function getFirst(table: string): Promise<Row | null> {
 export async function createRecord(table: string, data: Row): Promise<Row> {
   const payload: Row = { ...data }
   if (!PK_TABLES.has(table) && !('id' in payload)) {
-    payload.id = crypto.randomUUID()
+    payload.id = randomUUID()
   }
   if (!('created_at' in payload)) payload.created_at = utcnow()
-  if (!('updated_at' in payload)) payload.updated_at = utcnow()
+  if (!NO_UPDATED_AT.has(table) && !('updated_at' in payload)) payload.updated_at = utcnow()
 
   const keys = Object.keys(payload)
   const values = Object.values(payload)
@@ -108,7 +110,8 @@ export async function createRecord(table: string, data: Row): Promise<Row> {
 
 export async function updateRecord(table: string, id: string, data: Row): Promise<Row | null> {
   if (!id) return null
-  const payload = { ...data, updated_at: utcnow() }
+  const payload: Row = { ...data }
+  if (!NO_UPDATED_AT.has(table)) payload.updated_at = utcnow()
   const keys = Object.keys(payload)
   const values = Object.values(payload)
   const setClause = keys.map(k => `\`${k}\` = ?`).join(', ')
