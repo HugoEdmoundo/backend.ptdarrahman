@@ -11,7 +11,6 @@ import {
 } from './auth'
 import { getCurrentUser } from '../middleware/auth'
 import { loginLimiter, refreshLimiter, profileLimiter, registerLimiter } from './rate-limiter'
-import { validatePassword } from './validators'
 import {
   getByColumn,
   getById,

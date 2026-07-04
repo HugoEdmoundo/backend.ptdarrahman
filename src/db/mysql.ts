@@ -169,7 +169,7 @@ export async function searchPaginated(
     }
   }
 
-  let countSql = `SELECT COUNT(*) as total FROM \`${table}\` ${whereClause}`
+  const countSql = `SELECT COUNT(*) as total FROM \`${table}\` ${whereClause}`
   const [countRows] = await getPool().execute<RowDataPacket[]>(countSql, params as any)
   const total = Number(countRows[0].total)
 
