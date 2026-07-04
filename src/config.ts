@@ -1,11 +1,17 @@
+function requireEnv(name: string): string {
+  const val = process.env[name]
+  if (!val) throw new Error(`Missing required environment variable: ${name}`)
+  return val
+}
+
 export const config = {
-  jwtSecret: process.env.JWT_SECRET || '',
+  jwtSecret: requireEnv('JWT_SECRET'),
   jwtAlgorithm: 'HS256' as const,
   jwtExpiryHours: parseInt(process.env.JWT_EXPIRY_HOURS || '24', 10),
-  mysqlHost: process.env.MYSQL_HOST || '',
+  mysqlHost: requireEnv('MYSQL_HOST'),
   mysqlPort: parseInt(process.env.MYSQL_PORT || '3306', 10),
-  mysqlUser: process.env.MYSQL_USER || '',
-  mysqlPassword: process.env.MYSQL_PASSWORD || '',
-  mysqlDatabase: process.env.MYSQL_DATABASE || '',
+  mysqlUser: requireEnv('MYSQL_USER'),
+  mysqlPassword: requireEnv('MYSQL_PASSWORD'),
+  mysqlDatabase: requireEnv('MYSQL_DATABASE'),
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
 }

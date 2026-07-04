@@ -19,7 +19,7 @@ function getPool(): Pool {
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } as any : undefined,
+      ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: process.env.MYSQL_SSL_REJECT_UNAUTHORIZED !== 'false' } as any : undefined,
     })
   }
   return _pool

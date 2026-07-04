@@ -1,6 +1,7 @@
 {
-  "redirects": [
-    { "source": "/", "destination": "/api/", "permanent": false }
+  "rewrites": [
+    { "source": "/api", "destination": "/api/" },
+    { "source": "/", "destination": "/api/" }
   ],
   "functions": {
     "api/[[route]].ts": {

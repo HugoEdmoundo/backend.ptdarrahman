@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 import { config } from '../config'
@@ -42,11 +43,5 @@ export function hashRefreshToken(raw: string): string {
 }
 
 function hashSHA256(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash |= 0
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0')
+  return crypto.createHash('sha256').update(str).digest('hex')
 }
