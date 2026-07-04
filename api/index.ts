@@ -1,4 +1,8 @@
+import { Hono } from 'hono'
 import { handle } from 'hono/vercel'
-import app from '../src/app'
+
+const app = new Hono()
+
+app.get('/', (c) => c.json({ message: 'Minimal test - API running!', status: 'ok' }))
 
 export default handle(app)
