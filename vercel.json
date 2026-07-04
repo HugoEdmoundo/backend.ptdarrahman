@@ -1,4 +1,7 @@
 {
+  "redirects": [
+    { "source": "/", "destination": "/api/", "permanent": false }
+  ],
   "functions": {
     "api/[[route]].ts": {
       "memory": 256,
