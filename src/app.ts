@@ -1,27 +1,35 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
+import { swaggerUI } from '@hono/swagger-ui'
+import { Scalar } from '@scalar/hono-api-reference'
 
 import companyprofileRoutes from './companyprofile/routes'
 import { openapiSpec } from './openapi'
 
 const app = new Hono()
 
-app.use('*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['*'],
-  exposeHeaders: ['*'],
-}))
+// No CORS for now — allow all origins at the network level if needed
 
 // Health check
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
-  status: 'ok'
+  status: 'ok',
+  docs: {
+    swagger: '/ui',
+    scalar: '/scalar',
+    openapi: '/openapi.json',
+  }
 }))
 
 // OpenAPI JSON
 app.get('/openapi.json', (c) => c.json(openapiSpec))
+
+// Swagger UI
+app.get('/ui', swaggerUI({ url: '/openapi.json' }))
+
+// Scalar API Reference
+app.get('/scalar', Scalar({ url: '/openapi.json' }))
 
 // Routes
 app.route('/companyprofile', companyprofileRoutes)
