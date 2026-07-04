@@ -9,7 +9,12 @@ import { openapiSpec } from './openapi'
 
 const app = new Hono()
 
-// No CORS for now — allow all origins at the network level if needed
+app.use('*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['*'],
+  exposeHeaders: ['*'],
+}))
 
 // Health check
 app.get('/', (c) => c.json({
