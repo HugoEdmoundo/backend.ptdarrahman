@@ -1,6 +1,6 @@
 /**
  * Reliable seed runner using parameterized queries (no SQL escaping issues).
- * Usage: bun run src/seed.ts
+ * Usage: npx tsx src/seed.ts
  */
 
 import 'dotenv/config'
