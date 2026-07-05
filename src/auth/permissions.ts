@@ -44,7 +44,8 @@ export async function hasModuleAccess(
   if (!role) return false
   if (role.is_superadmin) return true
 
-  const permissions = (role.permissions as Record<string, string>) || {}
+  const rawPermissions = role.permissions
+  const permissions: Record<string, string> = typeof rawPermissions === 'string' ? JSON.parse(rawPermissions) : (rawPermissions || {})
   const levelStr = permissions[module] || AccessLevel.NONE
   const level = LEVEL_ORDER.indexOf(levelStr as AccessLevel)
   return level >= LEVEL_ORDER.indexOf(required)

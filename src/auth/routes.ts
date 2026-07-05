@@ -174,7 +174,7 @@ auth.get('/me', getCurrentUser, async (c) => {
     const role = await getById('roles', roleId)
     if (role) {
       roleName = role.name as string
-      rolePermissions = (role.permissions as Record<string, unknown>) || {}
+      rolePermissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : (role.permissions as Record<string, unknown>) || {}
     }
   }
 

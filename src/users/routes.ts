@@ -25,7 +25,7 @@ const updateSchema = z.object({
   password: z.string().optional(),
   role_id: z.string().optional(),
   user_type: z.string().optional(),
-  is_active: z.boolean().optional(),
+  is_active: z.union([z.boolean(), z.number()]).optional(),
 })
 
 users.get('/', getCurrentUser, requireSuperadmin, async (c) => {
@@ -71,7 +71,7 @@ users.put('/:id', getCurrentUser, requireSuperadmin, zValidator('json', updateSc
   if (body.password) data.password_hash = hashPassword(body.password)
   if (body.role_id) data.role_id = body.role_id
   if (body.user_type) data.user_type = body.user_type
-  if (body.is_active !== undefined) data.is_active = body.is_active
+  if (body.is_active !== undefined) data.is_active = body.is_active ? 1 : 0
   return c.json(await updateRecord('users', id, data))
 })
 

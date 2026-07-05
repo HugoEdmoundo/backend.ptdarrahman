@@ -8,8 +8,8 @@ import type { Variables } from '../types'
 
 const roles = new Hono<{ Variables: Variables }>()
 
-const createSchema = z.object({ name: z.string(), description: z.string().optional(), permissions: z.record(z.any()).optional(), is_superadmin: z.boolean().optional() })
-const updateSchema = z.object({ name: z.string().optional(), description: z.string().optional(), permissions: z.record(z.any()).optional(), is_superadmin: z.boolean().optional() })
+const createSchema = z.object({ name: z.string(), description: z.string().optional(), permissions: z.record(z.any()).optional(), is_superadmin: z.union([z.boolean(), z.number()]).optional() })
+const updateSchema = z.object({ name: z.string().optional(), description: z.string().optional(), permissions: z.record(z.any()).optional(), is_superadmin: z.union([z.boolean(), z.number()]).optional() })
 
 roles.get('/', getCurrentUser, requireSuperadmin, async (c) => c.json(await listAll('roles', { order: 'name' })))
 
@@ -22,7 +22,12 @@ roles.get('/:id', getCurrentUser, requireSuperadmin, async (c) => {
 })
 
 roles.post('/', getCurrentUser, requireSuperadmin, zValidator('json', createSchema), async (c) => {
-  return c.json(await createRecord('roles', c.req.valid('json') as any), 201)
+  const body = c.req.valid('json')
+  if (body.permissions && typeof body.permissions === 'object') {
+    (body as any).permissions = JSON.stringify(body.permissions)
+  }
+  if (body.is_superadmin !== undefined) (body as any).is_superadmin = body.is_superadmin ? 1 : 0
+  return c.json(await createRecord('roles', body as any), 201)
 })
 
 roles.put('/:id', getCurrentUser, requireSuperadmin, zValidator('json', updateSchema), async (c) => {
@@ -30,7 +35,12 @@ roles.put('/:id', getCurrentUser, requireSuperadmin, zValidator('json', updateSc
   if (!id) throw new HTTPException(400, { message: 'Missing id' })
   const existing = await getById('roles', id)
   if (!existing) throw new HTTPException(404, { message: 'Role not found' })
-  return c.json(await updateRecord('roles', id, c.req.valid('json') as any))
+  const body = c.req.valid('json')
+  if (body.permissions && typeof body.permissions === 'object') {
+    (body as any).permissions = JSON.stringify(body.permissions)
+  }
+  if (body.is_superadmin !== undefined) (body as any).is_superadmin = body.is_superadmin ? 1 : 0
+  return c.json(await updateRecord('roles', id, body as any))
 })
 
 roles.delete('/:id', getCurrentUser, requireSuperadmin, async (c) => {

@@ -11,6 +11,7 @@ import {
   createRecord, updateRecord, deleteRecord,
 } from '../db/mysql'
 import { deleteUpload, publicUrl, saveUpload } from '../storage'
+import { handleSSE, emit } from '../sse'
 import type { Variables } from '../types'
 
 const cp = new Hono<{ Variables: Variables }>()
@@ -40,6 +41,10 @@ async function requireCpCrud(c: any, next: any) {
   }
   await next()
 }
+
+// ── SSE (Server-Sent Events) ─────────────────────────────
+
+cp.get('/events', async (c) => handleSSE(c, 'companyprofile'))
 
 // ── Upload ────────────────────────────────────────────────
 
@@ -90,7 +95,7 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
     const { raw, hash, expiresAt } = generateRefreshToken()
     await createRecord('refresh_tokens', { user_id: user.id, token_hash: hash, expires_at: expiresAt.toISOString() })
     let rn = ''; let rp: Record<string, unknown> = {}; const rid = user.role_id as string | undefined
-    if (rid) { const r = await getById('roles', rid); if (r) { rn = r.name as string; rp = (r.permissions as Record<string, unknown>) || {} } }
+    if (rid) { const r = await getById('roles', rid); if (r) { rn = r.name as string; rp = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions as Record<string, unknown>) || {} } }
     return c.json({ access_token: token, refresh_token: raw, token_type: 'bearer', user: { id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: rid, role_name: rn, permissions: rp, user_type: user.user_type || 'admin' } })
   } catch (e) { if (e instanceof HTTPException) throw e; console.error(e); throw new HTTPException(500, { message: 'Internal Server Error' }) }
 })
@@ -130,7 +135,7 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
     const role = await getById('roles', roleId)
     if (role) {
       roleName = role.name as string
-      rolePermissions = (role.permissions as Record<string, unknown>) || {}
+      rolePermissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : (role.permissions as Record<string, unknown>) || {}
     }
   }
   return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, user_type: user.user_type || 'admin', is_active: user.is_active ?? true })
@@ -150,7 +155,7 @@ cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: 
     if (!verifyPassword(body.old_password, user.password_hash as string)) throw new HTTPException(400, { message: 'Old password is incorrect' })
     data.password_hash = hashPassword(body.new_password)
   }
-  if (data.email) {
+  if (data.email && data.email !== (user.email || '')) {
     if (user.user_type !== 'superadmin') throw new HTTPException(403, { message: 'Only superadmin can change email' })
     const existing = await getByColumn('users', 'email', data.email)
     if (existing && existing.id !== user.id) throw new HTTPException(400, { message: 'Email already in use' })
@@ -173,8 +178,9 @@ cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: 
 // ── Public ────────────────────────────────────────────────
 
 cp.get('/settings', async (c) => {
-  c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-  c.res.headers.set('Pragma', 'no-cache'); c.res.headers.set('Expires', '0')
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
+  c.header('Expires', '0')
   return c.json(await listAll('site_settings'))
 })
 
@@ -218,21 +224,21 @@ cp.put('/settings/:key', getCurrentUser, zValidator('json', z.object({ value: z.
   if (!ALLOWED_KEYS.has(key)) throw new HTTPException(400, { message: `Unknown key: ${key}` })
   const body = c.req.valid('json')
   const existing = await getByColumn('site_settings', 'key', key)
-  if (existing) return c.json(await updateRecord('site_settings', existing.key as string, { value: body.value }))
-  return c.json(await createRecord('site_settings', { key, value: body.value }))
+  if (existing) { const r = await updateRecord('site_settings', existing.key as string, { value: body.value }); emit('companyprofile', 'change'); return c.json(r) }
+  const r = await createRecord('site_settings', { key, value: body.value }); emit('companyprofile', 'change'); return c.json(r)
 })
 
 cp.put('/contact-info', getCurrentUser, zValidator('json', z.object({ email: z.string().optional(), phone: z.string().optional(), address: z.string().optional(), map_url: z.string().optional() })), async (c) => {
   const body = c.req.valid('json')
   const ex = await getFirst('contact_info')
-  if (ex) { await updateRecord('contact_info', ex.id as string, body); return c.json(await getById('contact_info', ex.id as string)) }
-  return c.json(await createRecord('contact_info', body))
+  if (ex) { await updateRecord('contact_info', ex.id as string, body); emit('companyprofile', 'change'); return c.json(await getById('contact_info', ex.id as string)) }
+  const r = await createRecord('contact_info', body); emit('companyprofile', 'change'); return c.json(r)
 })
 
 // CRUD per entity
 for (const entity of Object.keys(TABLES)) {
   cp.post(`/${entity}`, getCurrentUser, requireCpCrud, async (c) => {
-    return c.json(await createRecord(getTable(entity), await c.req.json()), 201)
+    const r = await createRecord(getTable(entity), await c.req.json()); emit('companyprofile', 'change'); return c.json(r, 201)
   })
 
   cp.put(`/${entity}/:id`, getCurrentUser, requireCpCrud, async (c) => {
@@ -246,7 +252,7 @@ for (const entity of Object.keys(TABLES)) {
     if (old.gallery && body.gallery) {
       for (const url of old.gallery as string[]) { if (!(body.gallery as string[]).includes(url)) deleteUpload(url) }
     }
-    return c.json(await updateRecord(table, id, body))
+    const r = await updateRecord(table, id, body); emit('companyprofile', 'change'); return c.json(r)
   })
 
   cp.delete(`/${entity}/:id`, getCurrentUser, requireCpCrud, async (c) => {
@@ -256,7 +262,7 @@ for (const entity of Object.keys(TABLES)) {
     if (!old) throw new HTTPException(404, { message: `${entity} not found` })
     for (const f of ['image', 'icon'] as const) { if (old[f]) deleteUpload(old[f] as string) }
     if (old.gallery) { for (const url of old.gallery as string[]) deleteUpload(url) }
-    await deleteRecord(table, id)
+    await deleteRecord(table, id); emit('companyprofile', 'change')
     return c.json({ message: 'Deleted' })
   })
 }
