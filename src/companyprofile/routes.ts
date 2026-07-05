@@ -228,7 +228,15 @@ cp.put('/settings/:key', getCurrentUser, zValidator('json', z.object({ value: z.
   const r = await createRecord('site_settings', { key, value: body.value }); emit('companyprofile', 'change'); return c.json(r)
 })
 
-cp.put('/contact-info', getCurrentUser, zValidator('json', z.object({ email: z.string().optional(), phone: z.string().optional(), address: z.string().optional(), map_url: z.string().optional() })), async (c) => {
+cp.put('/contact-info', getCurrentUser, zValidator('json', z.object({
+  phone_primary: z.string().optional(),
+  phone_secondary: z.string().optional(),
+  whatsapp: z.string().optional(),
+  email_primary: z.string().optional(),
+  email_admission: z.string().optional(),
+  address: z.string().optional(),
+  office_hours: z.string().optional(),
+})), async (c) => {
   const body = c.req.valid('json')
   const ex = await getFirst('contact_info')
   if (ex) { await updateRecord('contact_info', ex.id as string, body); emit('companyprofile', 'change'); return c.json(await getById('contact_info', ex.id as string)) }
