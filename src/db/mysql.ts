@@ -6,7 +6,7 @@ let _pool: Pool | null = null
 
 function getPool(): Pool {
   if (!_pool) {
-    if (!config.mysqlHost || !config.mysqlUser || !config.mysqlPassword || !config.mysqlDatabase) {
+    if (!config.mysqlHost || !config.mysqlUser || !config.mysqlDatabase) {
       throw new Error('MySQL credentials are not configured')
     }
     _pool = mysql.createPool({
@@ -26,8 +26,12 @@ function getPool(): Pool {
   return _pool
 }
 
-function utcnow(): string {
+export function utcnow(): string {
   return new Date().toISOString().slice(0, 19).replace('T', ' ')
+}
+
+export function toMysqlDatetime(date: Date): string {
+  return date.toISOString().slice(0, 19).replace('T', ' ')
 }
 
 const PK_TABLES = new Set(['site_settings'])
@@ -55,8 +59,8 @@ export async function listAll(
     const dir = parts.length > 1 && parts[1] === 'desc' ? 'DESC' : 'ASC'
     sql += ` ORDER BY \`${col}\` ${dir}`
   }
-  sql += ` LIMIT ? OFFSET ?`
-  const [rows] = await getPool().execute<RowDataPacket[]>(sql, [limit, skip] as any)
+  sql += ` LIMIT ${Number(limit)} OFFSET ${Number(skip)}`
+  const [rows] = await getPool().execute<RowDataPacket[]>(sql)
   return rows.map(mapRow)
 }
 
@@ -206,8 +210,8 @@ export async function searchPaginated(
     const dir = parts.length > 1 && parts[1] === 'desc' ? 'DESC' : 'ASC'
     dataSql += ` ORDER BY \`${col}\` ${dir}`
   }
-  dataSql += ` LIMIT ? OFFSET ?`
-  const [rows] = await getPool().execute<RowDataPacket[]>(dataSql, [...params, perPage, offset] as any)
+  dataSql += ` LIMIT ${Number(perPage)} OFFSET ${Number(offset)}`
+  const [rows] = await getPool().execute<RowDataPacket[]>(dataSql, params as any)
 
   return { data: rows.map(mapRow), total }
 }

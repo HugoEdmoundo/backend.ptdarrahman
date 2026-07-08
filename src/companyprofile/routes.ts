@@ -9,6 +9,7 @@ import { getCurrentUser } from '../middleware/auth'
 import {
   listAll, getByColumn, getById, getBySlug, getFirst,
   createRecord, updateRecord, deleteRecord,
+  toMysqlDatetime,
 } from '../db/mysql'
 import { deleteUpload, publicUrl, saveUpload } from '../storage'
 import { handleSSE, emit } from '../sse'
@@ -82,18 +83,18 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
       if (user) {
         const a = ((user.failed_login_attempts as number) || 0) + 1
         const upd: Record<string, unknown> = { failed_login_attempts: a }
-        if (a >= 5) { upd.locked_until = new Date(Date.now() + 15 * 60 * 1000).toISOString(); await updateRecord('users', user.id as string, upd); throw new HTTPException(429, { message: 'Account locked' }) }
+        if (a >= 5) { upd.locked_until = toMysqlDatetime(new Date(Date.now() + 15 * 60 * 1000)); await updateRecord('users', user.id as string, upd); throw new HTTPException(429, { message: 'Account locked' }) }
         await updateRecord('users', user.id as string, upd)
       }
       throw new HTTPException(401, { message: 'Invalid username or password' })
     }
     if (!user.is_active) throw new HTTPException(403, { message: 'User is inactive' })
     if (!await hasModuleAccess(user, Module.COMPANYPROFILE, AccessLevel.DASHBOARD)) throw new HTTPException(403, { message: 'Access denied' })
-    const now = new Date().toISOString()
+    const now = toMysqlDatetime(new Date())
     await updateRecord('users', user.id as string, { last_login_at: now, failed_login_attempts: 0, locked_until: null })
     const token = await createAccessToken({ sub: user.id })
     const { raw, hash, expiresAt } = generateRefreshToken()
-    await createRecord('refresh_tokens', { user_id: user.id, token_hash: hash, expires_at: expiresAt.toISOString() })
+    await createRecord('refresh_tokens', { user_id: user.id, token_hash: hash, expires_at: toMysqlDatetime(expiresAt) })
     let rn = ''; let rp: Record<string, unknown> = {}; const rid = user.role_id as string | undefined
     if (rid) { const r = await getById('roles', rid); if (r) { rn = r.name as string; rp = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions as Record<string, unknown>) || {} } }
     return c.json({ access_token: token, refresh_token: raw, token_type: 'bearer', user: { id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: rid, role_name: rn, permissions: rp, user_type: user.user_type || 'admin' } })
@@ -115,7 +116,7 @@ cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string()
   await updateRecord('refresh_tokens', stored.id as string, { revoked: true })
   const newAccess = await createAccessToken({ sub: user.id })
   const { raw: rawRefresh, hash: newHash, expiresAt: newExpires } = generateRefreshToken()
-  await createRecord('refresh_tokens', { user_id: user.id, token_hash: newHash, expires_at: newExpires.toISOString() })
+  await createRecord('refresh_tokens', { user_id: user.id, token_hash: newHash, expires_at: toMysqlDatetime(newExpires) })
   return c.json({ access_token: newAccess, refresh_token: rawRefresh, token_type: 'bearer' })
 })
 

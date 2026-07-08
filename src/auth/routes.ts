@@ -18,6 +18,7 @@ import {
   updateRecord,
   auditLog,
   getRawPool,
+  toMysqlDatetime,
 } from '../db/mysql'
 import { publicUrl, saveUpload } from '../storage'
 import type { Variables } from '../types'
@@ -63,7 +64,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     const attempts = ((user.failed_login_attempts as number) || 0) + 1
     const update: Record<string, unknown> = { failed_login_attempts: attempts }
     if (attempts >= LOCKOUT_THRESHOLD) {
-      const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
+      const lockedUntil = toMysqlDatetime(new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000))
       update.locked_until = lockedUntil
       await updateRecord('users', user.id as string, update)
       throw new HTTPException(429, {
@@ -87,7 +88,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     }
   }
 
-  const now = new Date().toISOString()
+  const now = toMysqlDatetime(new Date())
   await updateRecord('users', user.id as string, {
     last_login_at: now,
     failed_login_attempts: 0,
@@ -99,7 +100,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
   await createRecord('refresh_tokens', {
     user_id: user.id,
     token_hash: refreshHash,
-    expires_at: refreshExpires.toISOString(),
+    expires_at: toMysqlDatetime(refreshExpires),
   })
 
   let roleName = ''
@@ -155,7 +156,7 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   await createRecord('refresh_tokens', {
     user_id: user.id,
     token_hash: newHash,
-    expires_at: newExpires.toISOString(),
+    expires_at: toMysqlDatetime(newExpires),
   })
 
   return c.json({
