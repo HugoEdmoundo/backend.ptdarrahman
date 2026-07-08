@@ -78,8 +78,18 @@ users.put('/:id', getCurrentUser, requireSuperadmin, zValidator('json', updateSc
 users.delete('/:id', getCurrentUser, requireSuperadmin, async (c) => {
   const id = c.req.param('id')
   if (!id) throw new HTTPException(400, { message: 'Missing id' })
-  await deleteRecord('users', id)
-  return c.json({ message: 'Deleted' })
+  try {
+    const deleted = await deleteRecord('users', id)
+    if (!deleted) {
+      throw new HTTPException(404, { message: 'User not found' })
+    }
+    return c.json({ message: 'Deleted' })
+  } catch (e: any) {
+    if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
+      throw new HTTPException(409, { message: 'Cannot delete user because they are still referenced by other records' })
+    }
+    throw e
+  }
 })
 
 export default users

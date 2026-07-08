@@ -25,7 +25,7 @@ export async function getCurrentUser(c: Context<{ Variables: Variables }>, next:
   if (!user) {
     throw new HTTPException(401, { message: 'User not found' })
   }
-  if (user.is_active === false) {
+  if (!user.is_active) {
     throw new HTTPException(403, { message: 'User is inactive' })
   }
 

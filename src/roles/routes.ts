@@ -46,8 +46,18 @@ roles.put('/:id', getCurrentUser, requireSuperadmin, zValidator('json', updateSc
 roles.delete('/:id', getCurrentUser, requireSuperadmin, async (c) => {
   const id = c.req.param('id')
   if (!id) throw new HTTPException(400, { message: 'Missing id' })
-  await deleteRecord('roles', id)
-  return c.json({ message: 'Deleted' })
+  try {
+    const deleted = await deleteRecord('roles', id)
+    if (!deleted) {
+      throw new HTTPException(404, { message: 'Role not found' })
+    }
+    return c.json({ message: 'Deleted' })
+  } catch (e: any) {
+    if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
+      throw new HTTPException(409, { message: 'Cannot delete role because it is still in use by users' })
+    }
+    throw e
+  }
 })
 
 export default roles

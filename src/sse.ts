@@ -24,7 +24,7 @@ export async function handleSSE(c: Context, module: string) {
       clients.set(id, {
         module,
         enqueue: (data: string) => { if (!closed) controller.enqueue(enc.encode(data)) },
-        cancel: () => { closed = true; try { controller.close() } catch {} },
+        cancel: () => { closed = true; try { controller.close() } catch { /* ignore */ } },
       })
     },
     cancel() {

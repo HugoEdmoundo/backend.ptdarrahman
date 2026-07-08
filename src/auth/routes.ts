@@ -52,7 +52,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
   if (!user) user = await getByColumn('users', 'email', body.username)
 
   const fakeHash = '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXPm1QlFZqFOBmH39JcGpGtI7qJkGzS'
-  const storedHash = user ? (user.password_hash as string) : fakeHash
+  const storedHash = (user && typeof user.password_hash === 'string') ? user.password_hash : fakeHash
   const passwordValid = verifyPassword(body.password, storedHash)
 
   if (!user) {
@@ -74,7 +74,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     throw new HTTPException(401, { message: 'Invalid username or password' })
   }
 
-  if (user.is_active === false) {
+  if (!user.is_active) {
     throw new HTTPException(403, { message: 'User is inactive' })
   }
 
@@ -144,7 +144,7 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   }
 
   const user = await getById('users', stored.user_id as string)
-  if (!user || user.is_active === false) {
+  if (!user || !user.is_active) {
     throw new HTTPException(401, { message: 'User not found or inactive' })
   }
 
@@ -262,8 +262,16 @@ auth.put('/profile', getCurrentUser, zValidator('json', profileSchema), async (c
     ipAddress: c.req.header('x-forwarded-for') || null,
   })
 
-  const response = { ...user, ...data }
-  delete (response as any).password_hash
+  const response = {
+    id: user.id,
+    username: data.username !== undefined ? data.username : user.username,
+    email: data.email !== undefined ? data.email : (user.email || ''),
+    full_name: data.full_name !== undefined ? data.full_name : (user.full_name || ''),
+    avatar_url: data.avatar_url !== undefined ? data.avatar_url : (user.avatar_url || ''),
+    role_id: user.role_id,
+    user_type: user.user_type || 'admin',
+    is_active: user.is_active ?? true,
+  }
   return c.json(response)
 })
 

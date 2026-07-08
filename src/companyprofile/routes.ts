@@ -77,7 +77,7 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
     let user = await getByColumn('users', 'username', body.username)
     if (!user) user = await getByColumn('users', 'email', body.username)
     const fakeHash = '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXPm1QlFZqFOBmH39JcGpGtI7qJkGzS'
-    const storedHash = user ? (user.password_hash as string) : fakeHash
+    const storedHash = (user && typeof user.password_hash === 'string') ? user.password_hash : fakeHash
     if (!user || !verifyPassword(body.password, storedHash)) {
       if (user) {
         const a = ((user.failed_login_attempts as number) || 0) + 1
@@ -87,7 +87,7 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
       }
       throw new HTTPException(401, { message: 'Invalid username or password' })
     }
-    if (user.is_active === false) throw new HTTPException(403, { message: 'User is inactive' })
+    if (!user.is_active) throw new HTTPException(403, { message: 'User is inactive' })
     if (!await hasModuleAccess(user, Module.COMPANYPROFILE, AccessLevel.DASHBOARD)) throw new HTTPException(403, { message: 'Access denied' })
     const now = new Date().toISOString()
     await updateRecord('users', user.id as string, { last_login_at: now, failed_login_attempts: 0, locked_until: null })
@@ -111,7 +111,7 @@ cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string()
     if (expiresDt < new Date()) throw new HTTPException(401, { message: 'Refresh token expired' })
   }
   const user = await getById('users', stored.user_id as string)
-  if (!user || user.is_active === false) throw new HTTPException(401, { message: 'User not found or inactive' })
+  if (!user || !user.is_active) throw new HTTPException(401, { message: 'User not found or inactive' })
   await updateRecord('refresh_tokens', stored.id as string, { revoked: true })
   const newAccess = await createAccessToken({ sub: user.id })
   const { raw: rawRefresh, hash: newHash, expiresAt: newExpires } = generateRefreshToken()
@@ -170,8 +170,16 @@ cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: 
     const [rows] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id] as any)
     for (const row of rows) await updateRecord('refresh_tokens', row.id, { revoked: true })
   }
-  const response = { ...user, ...data }
-  delete (response as any).password_hash
+  const response = {
+    id: user.id,
+    username: data.username !== undefined ? data.username : user.username,
+    email: data.email !== undefined ? data.email : (user.email || ''),
+    full_name: data.full_name !== undefined ? data.full_name : (user.full_name || ''),
+    avatar_url: data.avatar_url !== undefined ? data.avatar_url : (user.avatar_url || ''),
+    role_id: user.role_id,
+    user_type: user.user_type || 'admin',
+    is_active: user.is_active ?? true,
+  }
   return c.json(response)
 })
 

@@ -16,7 +16,7 @@ function getPool(): Pool {
       password: config.mysqlPassword,
       database: config.mysqlDatabase,
       waitForConnections: true,
-      connectionLimit: 1,
+      connectionLimit: 10,
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
@@ -86,6 +86,17 @@ export async function getFirst(table: string): Promise<Row | null> {
   return rows.length ? mapRow(rows[0]) : null
 }
 
+function prepareValue(val: unknown): unknown {
+  if (val === undefined) return undefined
+  if (val === null) return null
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) return val
+    return JSON.stringify(val)
+  }
+  return val
+}
+
 export async function createRecord(table: string, data: Row): Promise<Row> {
   const payload: Row = { ...data }
   if (!PK_TABLES.has(table) && !('id' in payload)) {
@@ -94,8 +105,15 @@ export async function createRecord(table: string, data: Row): Promise<Row> {
   if (!('created_at' in payload)) payload.created_at = utcnow()
   if (!NO_UPDATED_AT.has(table) && !('updated_at' in payload)) payload.updated_at = utcnow()
 
-  const keys = Object.keys(payload)
-  const values = Object.values(payload)
+  const cleaned: Row = {}
+  for (const [key, val] of Object.entries(payload)) {
+    if (val !== undefined) {
+      cleaned[key] = prepareValue(val)
+    }
+  }
+
+  const keys = Object.keys(cleaned)
+  const values = Object.values(cleaned)
   const placeholders = keys.map(() => '?').join(', ')
   const cols = keys.map(k => `\`${k}\``).join(', ')
 
@@ -103,17 +121,25 @@ export async function createRecord(table: string, data: Row): Promise<Row> {
   await getPool().execute<ResultSetHeader>(sql, values as any)
 
   if (PK_TABLES.has(table)) {
-    return payload as Row
+    return cleaned as Row
   }
-  return (await getById(table, payload.id as string))!
+  return (await getById(table, cleaned.id as string))!
 }
 
 export async function updateRecord(table: string, id: string, data: Row): Promise<Row | null> {
   if (!id) return null
   const payload: Row = { ...data }
   if (!NO_UPDATED_AT.has(table)) payload.updated_at = utcnow()
-  const keys = Object.keys(payload)
-  const values = Object.values(payload)
+
+  const cleaned: Row = {}
+  for (const [key, val] of Object.entries(payload)) {
+    if (val !== undefined) {
+      cleaned[key] = prepareValue(val)
+    }
+  }
+
+  const keys = Object.keys(cleaned)
+  const values = Object.values(cleaned)
   const setClause = keys.map(k => `\`${k}\` = ?`).join(', ')
 
   const col = pkCol(table)
