@@ -915,26 +915,7 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
       },
     },
 
-    // ── Coming Soon ────────────────────────────────────────
-    '/teachers': {
-      get: { summary: 'Teachers Root', tags: ['Teachers'], responses: { '200': { description: 'Coming soon' } } },
-    },
-    '/visits': {
-      get: { summary: 'Visits Root', tags: ['Visits'], responses: { '200': { description: 'Coming soon' } } },
-    },
-    '/canteens': {
-      get: { summary: 'Canteens Root', tags: ['Canteens'], responses: { '200': { description: 'Coming soon' } } },
-    },
-    '/courts': {
-      get: { summary: 'Courts Root', tags: ['Courts'], responses: { '200': { description: 'Coming soon' } } },
-    },
-    '/inventories': {
-      get: {
-        summary: 'Inventories Root',
-        tags: ['Inventories'],
-        responses: { '200': { description: 'Coming soon' } },
-      },
-    },
+
   },
   components: {
     securitySchemes: {
@@ -965,10 +946,6 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
     { name: 'Superadmin', description: 'Superadmin dashboard' },
     { name: 'SPP', description: 'School fee management' },
     { name: 'Students', description: 'Student management' },
-    { name: 'Teachers', description: 'Coming soon' },
-    { name: 'Visits', description: 'Coming soon' },
-    { name: 'Canteens', description: 'Coming soon' },
-    { name: 'Courts', description: 'Coming soon' },
-    { name: 'Inventories', description: 'Coming soon' },
+
   ],
 }

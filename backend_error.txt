@@ -1,0 +1,50 @@
+Unhandled error: 124 | 
+125 | export async function deleteRecord(table: string, id: string): Promise<boolean> {
+126 |   if (!id) return false
+127 |   const col = pkCol(table)
+128 |   const sql = `DELETE FROM \`${table}\` WHERE ${col} = ?`
+129 |   const [result] = await getPool().execute<ResultSetHeader>(sql, [id])
+                                         ^
+error: Cannot delete or update a parent row: a foreign key constraint fails (`u868325204_ptdarrahman`.`users`, CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`))
+      errno: 1451,
+   sqlState: "23000",
+ sqlMessage: "Cannot delete or update a parent row: a foreign key constraint fails (`u868325204_ptdarrahman`.`users`, CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`))",
+        sql: "DELETE FROM `roles` WHERE id = ?",
+       code: "ER_ROW_IS_REFERENCED_2"
+
+      at deleteRecord (C:\ptdarrahman.sch.id\backend\src\db\mysql.ts:129:36)
+      at C:\ptdarrahman.sch.id\backend\src\roles\routes.ts:39:9
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at requireSuperadmin (C:\ptdarrahman.sch.id\backend\src\middleware\auth.ts:39:11)
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at getCurrentUser (C:\ptdarrahman.sch.id\backend\src\middleware\auth.ts:47:7)
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at cors2 (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\middleware\cors\index.js:76:11)
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\hono-base.js:306:31
+
+Unhandled error: 116 |   const values = Object.values(payload)
+117 |   const setClause = keys.map(k => `\`${k}\` = ?`).join(', ')
+118 | 
+119 |   const col = pkCol(table)
+120 |   const sql = `UPDATE \`${table}\` SET ${setClause} WHERE ${col} = ?`
+121 |   await getPool().execute<ResultSetHeader>(sql, [...values, id] as any)
+                        ^
+error: Incorrect arguments to mysqld_stmt_execute
+      errno: 1210,
+   sqlState: "HY000",
+ sqlMessage: "Incorrect arguments to mysqld_stmt_execute",
+        sql: "UPDATE `roles` SET `permissions` = ?, `updated_at` = ? WHERE id = ?",
+       code: "ER_WRONG_ARGUMENTS"
+
+      at updateRecord (C:\ptdarrahman.sch.id\backend\src\db\mysql.ts:121:19)
+      at C:\ptdarrahman.sch.id\backend\src\roles\routes.ts:38:8
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\validator\validator.js:81:18
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at requireSuperadmin (C:\ptdarrahman.sch.id\backend\src\middleware\auth.ts:39:11)
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at getCurrentUser (C:\ptdarrahman.sch.id\backend\src\middleware\auth.ts:47:7)
+      at dispatch (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\compose.js:27:23)
+      at cors2 (C:\ptdarrahman.sch.id\backend\node_modules\hono\dist\middleware\cors\index.js:76:11)
+
