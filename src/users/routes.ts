@@ -7,7 +7,7 @@ import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPagin
 import { hashPassword } from '../auth/auth'
 import { handleSSE, emit } from '../sse'
 import type { Variables } from '../types'
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
+import type { RowDataPacket } from 'mysql2/promise'
 
 const users = new Hono<{ Variables: Variables }>()
 
