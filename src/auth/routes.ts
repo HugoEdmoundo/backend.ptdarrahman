@@ -110,6 +110,12 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     if (role) roleName = role.name as string
   }
 
+  const pool = getRawPool()
+  const [pagePerms] = await pool.execute<import('mysql2/promise').RowDataPacket[]>(
+    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+    [user.id] as any
+  )
+
   return c.json({
     access_token: accessToken,
     refresh_token: rawRefresh,
@@ -123,6 +129,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
       role_id: roleId,
       role_name: roleName,
       user_type: user.user_type || 'admin',
+      page_permissions: pagePerms.map(r => r.page_id),
     },
   })
 })
@@ -179,6 +186,12 @@ auth.get('/me', getCurrentUser, async (c) => {
     }
   }
 
+  const pool = getRawPool()
+  const [pagePerms] = await pool.execute<import('mysql2/promise').RowDataPacket[]>(
+    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+    [user.id] as any
+  )
+
   return c.json({
     id: user.id,
     username: user.username,
@@ -188,6 +201,7 @@ auth.get('/me', getCurrentUser, async (c) => {
     role_id: roleId,
     role_name: roleName,
     permissions: rolePermissions,
+    page_permissions: pagePerms.map(r => r.page_id),
     user_type: user.user_type || 'admin',
     is_active: user.is_active ?? true,
   })

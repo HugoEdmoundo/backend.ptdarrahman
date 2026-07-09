@@ -3,9 +3,11 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { getCurrentUser, requireSuperadmin } from '../middleware/auth'
-import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/mysql'
+import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated, getRawPool } from '../db/mysql'
 import { hashPassword } from '../auth/auth'
+import { handleSSE, emit } from '../sse'
 import type { Variables } from '../types'
+import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
 const users = new Hono<{ Variables: Variables }>()
 
@@ -90,6 +92,110 @@ users.delete('/:id', getCurrentUser, requireSuperadmin, async (c) => {
     }
     throw e
   }
+})
+
+// ── Page Permissions per User ──────────────────────────────
+
+const pagePermsSchema = z.object({
+  page_ids: z.array(z.string()),
+})
+
+users.get('/:id/page-permissions', getCurrentUser, requireSuperadmin, async (c) => {
+  const id = c.req.param('id')
+  if (!id) throw new HTTPException(400, { message: 'Missing id' })
+
+  const user = await getById('users', id)
+  if (!user) throw new HTTPException(404, { message: 'User not found' })
+
+  const pool = getRawPool()
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT upp.page_id
+     FROM user_page_permissions upp
+     WHERE upp.user_id = ?`,
+    [id]
+  )
+
+  return c.json({
+    user_id: id,
+    page_ids: rows.map(r => r.page_id),
+  })
+})
+
+users.put('/:id/page-permissions', getCurrentUser, requireSuperadmin, zValidator('json', pagePermsSchema), async (c) => {
+  const userId = c.req.param('id')
+  if (!userId) throw new HTTPException(400, { message: 'Missing id' })
+
+  const user = await getById('users', userId)
+  if (!user) throw new HTTPException(404, { message: 'User not found' })
+
+  const body = c.req.valid('json')
+  const pool = getRawPool()
+
+  await pool.execute('DELETE FROM user_page_permissions WHERE user_id = ?', [userId])
+
+  if (body.page_ids.length > 0) {
+    const values = body.page_ids.map(pageId => [pageId])
+    const placeholders = values.map(() => '(UUID(), ?, ?, NOW())').join(', ')
+    const flatParams: any[] = []
+    for (const [pageId] of values) {
+      flatParams.push(userId, pageId)
+    }
+    await pool.execute(
+      `INSERT INTO user_page_permissions (id, user_id, page_id, created_at) VALUES ${placeholders}`,
+      flatParams
+    )
+  }
+
+  const [updated] = await pool.execute<RowDataPacket[]>(
+    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+    [userId]
+  )
+
+  const result = {
+    user_id: userId,
+    page_ids: updated.map(r => r.page_id),
+  }
+
+  // Emit SSE event ke user yang bersangkutan
+  emit(`user-${userId}`, 'page_permissions_changed', JSON.stringify(result))
+
+  return c.json(result)
+})
+
+// ── SSE untuk realtime page permissions ────────────────────
+
+users.get('/:id/events', async (c) => {
+  const userId = c.req.param('id')
+  const token = c.req.query('token')
+  
+  if (token) {
+    try {
+      const { verifyToken } = await import('../auth/auth')
+      const payload = await verifyToken(token)
+      if (!payload || payload.sub !== userId) {
+        throw new HTTPException(403, { message: 'Forbidden' })
+      }
+    } catch {
+      throw new HTTPException(401, { message: 'Invalid token' })
+    }
+  } else {
+    // Fallback: check Bearer token from header
+    const auth = c.req.header('Authorization')
+    if (!auth || !auth.startsWith('Bearer ')) {
+      throw new HTTPException(401, { message: 'Missing token' })
+    }
+    try {
+      const { verifyToken } = await import('../auth/auth')
+      const payload = await verifyToken(auth.slice(7))
+      if (!payload || payload.sub !== userId) {
+        throw new HTTPException(403, { message: 'Forbidden' })
+      }
+    } catch {
+      throw new HTTPException(401, { message: 'Invalid token' })
+    }
+  }
+  
+  return handleSSE(c, `user-${userId}`)
 })
 
 export default users

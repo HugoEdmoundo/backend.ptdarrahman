@@ -376,9 +376,89 @@ async function main() {
   }
   console.log(`   ✅ ${testimonialsData.length} testimonials ready`)
 
-  // 15. Verify
+  // 15. Apply page_permissions migration
+  console.log('📋 Applying page_permissions migration ...')
+  const mig004 = readFileSync(join(__dirname, '../migrations/004_page_permissions.sql'), 'utf8')
+  const migStmts = mig004.split(';').map(s => s.trim()).filter(s => s && !s.startsWith('--'))
+  for (const stmt of migStmts) {
+    try { await conn.execute(stmt) } catch { /* skip */ }
+  }
+  console.log('   ✅ page_permissions schema applied')
+
+  // 16. Seed modules & pages
+  console.log('🌱 Seeding modules & pages ...')
+  const modulesData = [
+    {
+      id: 'mod-companyprofile', key: 'companyprofile', name: 'Company Profile',
+      pages: [
+        { id: 'page-cp-news', key: 'news', label: 'Berita', icon: 'Newspaper', sort_order: 1 },
+        { id: 'page-cp-programs', key: 'programs', label: 'Program', icon: 'GraduationCap', sort_order: 2 },
+        { id: 'page-cp-facilities', key: 'facilities', label: 'Fasilitas', icon: 'Building2', sort_order: 3 },
+        { id: 'page-cp-staff', key: 'staff', label: 'Staff', icon: 'Users', sort_order: 4 },
+        { id: 'page-cp-achievements', key: 'achievements', label: 'Prestasi', icon: 'Trophy', sort_order: 5 },
+        { id: 'page-cp-gallery', key: 'gallery', label: 'Galeri', icon: 'Image', sort_order: 6 },
+        { id: 'page-cp-testimonials', key: 'testimonials', label: 'Testimoni', icon: 'MessageSquare', sort_order: 7 },
+        { id: 'page-cp-social', key: 'social-links', label: 'Tautan Sosial', icon: 'Link', sort_order: 8 },
+        { id: 'page-cp-contact', key: 'contact', label: 'Info Kontak', icon: 'Phone', sort_order: 9 },
+        { id: 'page-cp-settings', key: 'settings', label: 'Pengaturan', icon: 'Settings', sort_order: 10 },
+      ],
+    },
+    {
+      id: 'mod-ppdb', key: 'ppdb', name: 'PPDB',
+      pages: [
+        { id: 'page-ppdb-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', sort_order: 1 },
+        { id: 'page-ppdb-registration', key: 'registration', label: 'Pendaftaran', icon: 'FileText', sort_order: 2 },
+        { id: 'page-ppdb-verification', key: 'verification', label: 'Verifikasi Berkas', icon: 'CheckCircle', sort_order: 3 },
+        { id: 'page-ppdb-announcement', key: 'announcement', label: 'Pengumuman', icon: 'Megaphone', sort_order: 4 },
+        { id: 'page-ppdb-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', sort_order: 5 },
+        { id: 'page-ppdb-settings', key: 'settings', label: 'Pengaturan', icon: 'Settings', sort_order: 6 },
+      ],
+    },
+    {
+      id: 'mod-students', key: 'students', name: 'Students',
+      pages: [
+        { id: 'page-students-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', sort_order: 1 },
+        { id: 'page-students-list', key: 'list', label: 'Data Siswa', icon: 'Users', sort_order: 2 },
+        { id: 'page-students-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', sort_order: 3 },
+      ],
+    },
+    {
+      id: 'mod-kunjungan', key: 'kunjungan', name: 'Kunjungan',
+      pages: [
+        { id: 'page-kunjungan-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', sort_order: 1 },
+        { id: 'page-kunjungan-schedule', key: 'schedule', label: 'Jadwal', icon: 'Calendar', sort_order: 2 },
+        { id: 'page-kunjungan-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', sort_order: 3 },
+      ],
+    },
+  ]
+
+  for (const mod of modulesData) {
+    try {
+      await conn.execute(
+        'INSERT INTO modules (id, `key`, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [mod.id, mod.key, mod.name, now, now]
+      )
+    } catch (e: any) {
+      if (e.code === 'ER_DUP_ENTRY') continue
+      console.error(`   ⚠️  Module "${mod.key}": ${e.message}`)
+    }
+    for (const p of mod.pages) {
+      try {
+        await conn.execute(
+          'INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [p.id, mod.id, p.key, p.label, p.icon, p.sort_order, now, now]
+        )
+      } catch (e: any) {
+        if (e.code === 'ER_DUP_ENTRY') continue
+        console.error(`   ⚠️  Page "${p.key}": ${e.message}`)
+      }
+    }
+  }
+  console.log(`   ✅ ${modulesData.length} modules seeded`)
+
+  // 17. Verify
   console.log('\n📊 Final verification:')
-  const tables = ['site_settings', 'contact_info', 'roles', 'users', 'news_articles', 'programs', 'facilities', 'staff', 'achievements', 'gallery_items', 'social_links', 'testimonials']
+  const tables = ['site_settings', 'contact_info', 'roles', 'users', 'news_articles', 'programs', 'facilities', 'staff', 'achievements', 'gallery_items', 'social_links', 'testimonials', 'modules', 'pages', 'user_page_permissions']
   for (const t of tables) {
     try {
       const [rows] = await conn.execute<any[]>(`SELECT COUNT(*) as cnt FROM \`${t}\``)

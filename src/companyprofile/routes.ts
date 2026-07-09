@@ -97,7 +97,12 @@ cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), passw
     await createRecord('refresh_tokens', { user_id: user.id, token_hash: hash, expires_at: toMysqlDatetime(expiresAt) })
     let rn = ''; let rp: Record<string, unknown> = {}; const rid = user.role_id as string | undefined
     if (rid) { const r = await getById('roles', rid); if (r) { rn = r.name as string; rp = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions as Record<string, unknown>) || {} } }
-    return c.json({ access_token: token, refresh_token: raw, token_type: 'bearer', user: { id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: rid, role_name: rn, permissions: rp, user_type: user.user_type || 'admin' } })
+    const pool = (await import('../db/mysql')).getRawPool()
+    const [pagePerms] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>(
+      'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+      [user.id] as any
+    )
+    return c.json({ access_token: token, refresh_token: raw, token_type: 'bearer', user: { id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: rid, role_name: rn, permissions: rp, page_permissions: pagePerms.map(r => r.page_id), user_type: user.user_type || 'admin' } })
   } catch (e) { if (e instanceof HTTPException) throw e; console.error(e); throw new HTTPException(500, { message: 'Internal Server Error' }) }
 })
 
@@ -139,7 +144,12 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
       rolePermissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : (role.permissions as Record<string, unknown>) || {}
     }
   }
-  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, user_type: user.user_type || 'admin', is_active: user.is_active ?? true })
+  const pool = (await import('../db/mysql')).getRawPool()
+  const [pagePerms] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>(
+    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+    [user.id] as any
+  )
+  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, page_permissions: pagePerms.map(r => r.page_id), user_type: user.user_type || 'admin', is_active: user.is_active ?? true })
 })
 
 cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: z.string().optional(), email: z.string().optional(), full_name: z.string().optional(), avatar_url: z.string().optional(), old_password: z.string().optional(), new_password: z.string().optional() })), async (c) => {
