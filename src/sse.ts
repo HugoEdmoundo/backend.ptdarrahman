@@ -16,19 +16,28 @@ export function emit(module: string, event: string, data: string = '') {
 export async function handleSSE(c: Context, module: string) {
   const id = String(++nextId)
   let closed = false
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder()
       controller.enqueue(enc.encode(`event: connected\ndata: {}\n\n`))
+      
+      keepaliveTimer = setInterval(() => {
+        if (!closed) {
+          try { controller.enqueue(enc.encode(': keepalive\n\n')) } catch { /* ignore */ }
+        }
+      }, 15000)
+      
       clients.set(id, {
         module,
         enqueue: (data: string) => { if (!closed) controller.enqueue(enc.encode(data)) },
-        cancel: () => { closed = true; try { controller.close() } catch { /* ignore */ } },
+        cancel: () => { closed = true; clearInterval(keepaliveTimer!); try { controller.close() } catch { /* ignore */ } },
       })
     },
     cancel() {
       closed = true
+      if (keepaliveTimer) clearInterval(keepaliveTimer)
       clients.delete(id)
     },
   })
@@ -40,6 +49,7 @@ export async function handleSSE(c: Context, module: string) {
 
   c.req.raw.signal.addEventListener('abort', () => {
     closed = true
+    if (keepaliveTimer) clearInterval(keepaliveTimer)
     clients.delete(id)
   })
 
