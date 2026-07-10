@@ -915,6 +915,439 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
       },
     },
 
+    // ── Auth ───────────────────────────────────────────────
+    '/auth/login': {
+      post: {
+        summary: 'Login',
+        tags: ['Auth'],
+        description: 'Authenticate user and receive access + refresh tokens.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  username: { type: 'string', description: 'Username or email' },
+                  password: { type: 'string' },
+                },
+                required: ['username', 'password'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Login successful' },
+          '401': { description: 'Invalid credentials' },
+          '429': { description: 'Account locked (too many failed attempts)' },
+        },
+      },
+    },
+    '/auth/refresh': {
+      post: {
+        summary: 'Refresh Token',
+        tags: ['Auth'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: { refresh_token: { type: 'string' } },
+                required: ['refresh_token'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Token refreshed' },
+          '401': { description: 'Invalid or expired refresh token' },
+        },
+      },
+    },
+    '/auth/me': {
+      get: {
+        summary: 'Get Current User',
+        tags: ['Auth'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Current user data' }, '401': { description: 'Unauthorized' } },
+      },
+    },
+    '/auth/register-applicant': {
+      post: {
+        summary: 'Register Applicant',
+        tags: ['Auth'],
+        description: 'Public. Register a new applicant account.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  username: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 8 },
+                  full_name: { type: 'string' },
+                },
+                required: ['username', 'email', 'password', 'full_name'],
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'Registration successful' }, '400': { description: 'Validation error' } },
+      },
+    },
+
+    // ── PPDB ───────────────────────────────────────────────
+    '/ppdb/periods': {
+      get: {
+        summary: 'List PPDB Periods',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'perPage', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Paginated periods' } },
+      },
+      post: {
+        summary: 'Create PPDB Period',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Period created' } },
+      },
+    },
+    '/ppdb/waves': {
+      get: {
+        summary: 'List PPDB Waves',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'period_id', in: 'query', schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'perPage', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: { '200': { description: 'Paginated waves' } },
+      },
+      post: {
+        summary: 'Create PPDB Wave',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Wave created' } },
+      },
+    },
+    '/ppdb/levels': {
+      get: {
+        summary: 'List Education Levels',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of levels' } },
+      },
+      post: {
+        summary: 'Create Education Level',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Level created' } },
+      },
+    },
+    '/ppdb/categories': {
+      get: {
+        summary: 'List Registration Categories',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of categories' } },
+      },
+      post: {
+        summary: 'Create Registration Category',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Category created' } },
+      },
+    },
+    '/ppdb/flows': {
+      get: {
+        summary: 'List Selection Flows',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of flows' } },
+      },
+      post: {
+        summary: 'Create Selection Flow',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Flow created' } },
+      },
+    },
+    '/ppdb/wave-configs': {
+      get: {
+        summary: 'List Wave Configurations',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Paginated wave configurations' } },
+      },
+      post: {
+        summary: 'Create Wave Configuration',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Wave config created' } },
+      },
+    },
+    '/ppdb/applicants': {
+      get: {
+        summary: 'List Applicants (Admin)',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'perPage', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Paginated applicants' } },
+      },
+    },
+    '/ppdb/applicants/register': {
+      post: {
+        summary: 'Register as Applicant',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Registration successful' } },
+      },
+    },
+    '/ppdb/applicants/me': {
+      get: {
+        summary: 'Get My Application',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Applicant data with profile' } },
+      },
+    },
+    '/ppdb/public/wave-configs': {
+      get: {
+        summary: 'List Active Wave Configs (Public)',
+        tags: ['PPDB'],
+        description: 'Public endpoint. No authentication required.',
+        responses: { '200': { description: 'Active wave configurations' } },
+      },
+    },
+    '/ppdb/document-requirements': {
+      get: {
+        summary: 'List Document Requirements',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of document requirements' } },
+      },
+      post: {
+        summary: 'Create Document Requirement',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Requirement created' } },
+      },
+    },
+    '/ppdb/admin/documents/review': {
+      get: {
+        summary: 'Document Review Queue',
+        tags: ['PPDB'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', default: 'uploaded' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+        ],
+        responses: { '200': { description: 'Paginated document review queue' } },
+      },
+    },
+
+    // ── Payment ────────────────────────────────────────────
+    '/payment/stages': {
+      get: {
+        summary: 'List Payment Stages',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of payment stages' } },
+      },
+      post: {
+        summary: 'Create Payment Stage',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Stage created' } },
+      },
+    },
+    '/payment/invoices': {
+      get: {
+        summary: 'List Invoices (Admin)',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Paginated invoices' } },
+      },
+    },
+    '/payment/invoices/mine': {
+      get: {
+        summary: 'Get My Invoices',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Applicant invoices with transactions' } },
+      },
+    },
+    '/payment/transactions': {
+      get: {
+        summary: 'List Transactions (Admin)',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Paginated transactions' } },
+      },
+      post: {
+        summary: 'Submit Payment Transaction',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        description: 'Submit a payment proof with invoice ID, amount, and file.',
+        responses: { '201': { description: 'Transaction created' } },
+      },
+    },
+    '/payment/discounts': {
+      get: {
+        summary: 'List Discounts',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of discounts' } },
+      },
+      post: {
+        summary: 'Create Discount',
+        tags: ['Payment'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Discount created' } },
+      },
+    },
+
+    // ── Selection ──────────────────────────────────────────
+    '/selection/test-types': {
+      get: {
+        summary: 'List Test Types',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of test types' } },
+      },
+      post: {
+        summary: 'Create Test Type',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Test type created' } },
+      },
+    },
+    '/selection/parameters': {
+      get: {
+        summary: 'List Selection Parameters',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of parameters' } },
+      },
+      post: {
+        summary: 'Create Selection Parameter',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Parameter created' } },
+      },
+    },
+    '/selection/scores': {
+      get: {
+        summary: 'List Selection Scores',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of scores' } },
+      },
+      post: {
+        summary: 'Submit Selection Score',
+        tags: ['Selection'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Score submitted' } },
+      },
+    },
+
+    // ── Notifications ──────────────────────────────────────
+    '/notif/templates': {
+      get: {
+        summary: 'List Notification Templates',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of templates' } },
+      },
+      post: {
+        summary: 'Create Notification Template',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Template created' } },
+      },
+    },
+
+    // ── Post ───────────────────────────────────────────────
+    '/post/mou-templates': {
+      get: {
+        summary: 'List MOU Templates',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of MOU templates' } },
+      },
+      post: {
+        summary: 'Create MOU Template',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'MOU template created' } },
+      },
+    },
+    '/post/mou': {
+      get: {
+        summary: 'List MOUs',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of MOUs' } },
+      },
+      post: {
+        summary: 'Create MOU',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'MOU created' } },
+      },
+    },
+    '/post/re-registrations': {
+      get: {
+        summary: 'List Re-registrations',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of re-registrations' } },
+      },
+      post: {
+        summary: 'Create Re-registration',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Re-registration created' } },
+      },
+    },
+    '/post/mpls': {
+      get: {
+        summary: 'List MPLS Schedules',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'List of MPLS schedules' } },
+      },
+      post: {
+        summary: 'Create MPLS Schedule',
+        tags: ['Post'],
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'MPLS schedule created' } },
+      },
+    },
+
+    // ── Dashboard ──────────────────────────────────────────
+    '/dashboard/stats': {
+      get: {
+        summary: 'Dashboard Statistics',
+        tags: ['Dashboard'],
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Dashboard stats' } },
+      },
+    },
+
 
   },
   components: {
@@ -929,7 +1362,8 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
   },
   tags: [
     { name: 'Root', description: 'Health check and documentation endpoints' },
-    { name: 'Company Profile - Auth', description: 'Authentication and user profile management' },
+    { name: 'Auth', description: 'Authentication and user profile management' },
+    { name: 'Company Profile - Auth', description: 'Company profile authentication' },
     { name: 'Company Profile - Upload', description: 'File upload and management' },
     { name: 'Company Profile - Settings', description: 'Site settings management' },
     { name: 'Company Profile - Contact', description: 'Contact information' },
@@ -944,8 +1378,13 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
     { name: 'Users', description: 'User management' },
     { name: 'Roles', description: 'Role management' },
     { name: 'Superadmin', description: 'Superadmin dashboard' },
+    { name: 'PPDB', description: 'PPDB admission management (periods, waves, applicants, documents)' },
+    { name: 'Payment', description: 'Payment stages, invoices, transactions, and discounts' },
+    { name: 'Selection', description: 'Selection test types, parameters, and scores' },
+    { name: 'Notifications', description: 'Notification templates and calendar events' },
+    { name: 'Post', description: 'MOU, re-registrations, MPLS schedules' },
+    { name: 'Dashboard', description: 'Dashboard statistics' },
     { name: 'SPP', description: 'School fee management' },
     { name: 'Students', description: 'Student management' },
-
   ],
 }

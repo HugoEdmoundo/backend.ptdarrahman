@@ -30,6 +30,13 @@ function getUploadDir(): string {
   return dir
 }
 
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
+
 function detectMime(content: Uint8Array): string | null {
   for (const [mime, magic] of Object.entries(MAGIC_BYTES)) {
     if (magic.every((b, i) => content[i] === b)) return mime
@@ -53,7 +60,8 @@ export async function saveUpload(file: File): Promise<string> {
   const detected = detectMime(content)
   if (!detected) throw new Error('File content does not match allowed image types')
 
-  const name = `${randomUUID()}.webp`
+  const ext = MIME_TO_EXT[detected] || 'bin'
+  const name = `${randomUUID()}.${ext}`
   const dir = getUploadDir()
   const filePath = join(dir, name)
   writeFileSync(filePath, Buffer.from(content))

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { serveStatic } from 'hono/bun'
 import { HTTPException } from 'hono/http-exception'
 
 import companyprofileRoutes from './companyprofile/routes'
@@ -25,6 +26,8 @@ app.use('*', cors({
   allowHeaders: ['*'],
   exposeHeaders: ['*'],
 }))
+
+app.get('/uploads/*', serveStatic({ root: './' }))
 
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",

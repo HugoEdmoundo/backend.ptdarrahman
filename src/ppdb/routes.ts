@@ -535,9 +535,18 @@ const applicantRegisterSchema = z.object({
 // Generate registration number: PPDB-YYYY-XXXXX
 async function generateRegistrationNumber(): Promise<string> {
   const year = new Date().getFullYear()
-  const existing = await listAll('applicants', { order: 'created_at.desc', limit: 1 })
-  const count = existing.length > 0 ? parseInt((existing[0].registration_number as string).split('-')[2]) + 1 : 1
-  return `PPDB-${year}-${String(count).padStart(5, '0')}`
+  const pool = getRawPool()
+  const prefix = `PPDB-${year}-`
+  const [rows] = await pool.execute<any[]>(
+    `SELECT registration_number FROM applicants WHERE registration_number LIKE ? ORDER BY registration_number DESC LIMIT 1`,
+    [`${prefix}%`]
+  )
+  let count = 1
+  if (rows.length > 0) {
+    const lastNum = parseInt((rows[0].registration_number as string).split('-')[2])
+    if (!isNaN(lastNum)) count = lastNum + 1
+  }
+  return `${prefix}${String(count).padStart(5, '0')}`
 }
 
 // Admin: list all applicants
@@ -853,6 +862,16 @@ ppdb.post('/applicants/me/documents', getCurrentUser, async (c) => {
 
   const maxSize = (requirement.max_size_mb as number || 5) * 1024 * 1024
   if (file.size > maxSize) throw new HTTPException(400, { message: `File too large. Max ${requirement.max_size_mb}MB` })
+
+  const allowedDocTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
+  if (requirement.file_type && typeof requirement.file_type === 'string' && requirement.file_type.trim()) {
+    const reqTypes = requirement.file_type.split(',').map((t: string) => t.trim().toLowerCase())
+    if (!reqTypes.includes(file.type)) {
+      throw new HTTPException(400, { message: `File type not allowed. Required: ${reqTypes.join(', ')}` })
+    }
+  } else if (!allowedDocTypes.has(file.type)) {
+    throw new HTTPException(400, { message: 'File type not allowed. Accepted: JPEG, PNG, WebP, GIF, PDF' })
+  }
 
   const existingDoc = await getByColumn('applicant_documents', 'applicant_id', applicant.id)
   const docs = await listAll('applicant_documents', { limit: 50 })

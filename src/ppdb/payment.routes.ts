@@ -108,8 +108,18 @@ payment.post('/transactions', getCurrentUser, async (c) => {
 
   if (!file || !invoiceId || !amount) throw new HTTPException(400, { message: 'file, invoice_id, amount required' })
 
+  const allowedPaymentTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
+  if (!allowedPaymentTypes.has(file.type)) {
+    throw new HTTPException(400, { message: 'File type not allowed. Accepted: JPEG, PNG, WebP, GIF, PDF' })
+  }
+  const maxPaymentSize = 5 * 1024 * 1024
+  if (file.size > maxPaymentSize) {
+    throw new HTTPException(400, { message: 'File too large. Max 5MB' })
+  }
+
   const invoice = await getById('invoices', invoiceId)
   if (!invoice || invoice.applicant_id !== applicant.id) throw new HTTPException(404, { message: 'Invoice not found' })
+  if ((invoice as any).status === 'paid') throw new HTTPException(400, { message: 'Invoice is already fully paid' })
 
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin'
   const storedName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`

@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { createAccessToken, generateRefreshToken, verifyPassword } from '../auth/auth'
+import { createAccessToken, generateRefreshToken, hashRefreshToken } from '../auth/auth'
+import { loginUser } from '../auth/login'
 import { AccessLevel, Module, hasModuleAccess } from '../auth/permissions'
 import { loginLimiter } from '../auth/rate-limiter'
 import { getCurrentUser } from '../middleware/auth'
@@ -29,7 +30,12 @@ function getTable(entity: string): string {
   return t
 }
 
-const ALLOWED_KEYS = new Set([
+const PUBLIC_SETTINGS_KEYS = new Set([
+  'favicon', 'site_name', 'site_description', 'logo',
+  'whatsapp', 'whatsapp_message', 'whatsapp_message_en', 'whatsapp_message_id',
+])
+
+const ADMIN_SETTINGS_KEYS = new Set([
   'favicon', 'site_name', 'site_description', 'logo', 'to_email',
   'whatsapp', 'whatsapp_number', 'whatsapp_message',
   'whatsapp_message_en', 'whatsapp_message_id',
@@ -45,7 +51,7 @@ async function requireCpCrud(c: any, next: any) {
 
 // ── SSE (Server-Sent Events) ─────────────────────────────
 
-cp.get('/events', async (c) => handleSSE(c, 'companyprofile'))
+cp.get('/events', getCurrentUser, async (c) => handleSSE(c, 'companyprofile'))
 
 // ── Upload ────────────────────────────────────────────────
 
@@ -53,6 +59,16 @@ cp.post('/upload', getCurrentUser, requireCpCrud, async (c) => {
   const fd = await c.req.formData()
   const file = fd.get('file') as File | null
   if (!file) throw new HTTPException(400, { message: 'No file uploaded' })
+
+  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+  if (!allowedTypes.has(file.type)) {
+    throw new HTTPException(400, { message: 'File type not allowed. Accepted: JPEG, PNG, WebP, GIF' })
+  }
+  const maxSize = 5 * 1024 * 1024
+  if (file.size > maxSize) {
+    throw new HTTPException(400, { message: 'File too large. Max 5MB' })
+  }
+
   try {
     return c.json({ url: publicUrl(await saveUpload(file)) })
   } catch (e: any) {
@@ -73,42 +89,21 @@ cp.delete('/uploads/:filename', getCurrentUser, requireCpCrud, async (c) => {
 
 cp.post('/auth/login', zValidator('json', z.object({ username: z.string(), password: z.string() })), async (c) => {
   try {
-    loginLimiter.check(c)
+    await loginLimiter.checkAsync(c)
     const body = c.req.valid('json')
-    let user = await getByColumn('users', 'username', body.username)
-    if (!user) user = await getByColumn('users', 'email', body.username)
-    const fakeHash = '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXPm1QlFZqFOBmH39JcGpGtI7qJkGzS'
-    const storedHash = (user && typeof user.password_hash === 'string') ? user.password_hash : fakeHash
-    if (!user || !verifyPassword(body.password, storedHash)) {
-      if (user) {
-        const a = ((user.failed_login_attempts as number) || 0) + 1
-        const upd: Record<string, unknown> = { failed_login_attempts: a }
-        if (a >= 5) { upd.locked_until = toMysqlDatetime(new Date(Date.now() + 15 * 60 * 1000)); await updateRecord('users', user.id as string, upd); throw new HTTPException(429, { message: 'Account locked' }) }
-        await updateRecord('users', user.id as string, upd)
-      }
-      throw new HTTPException(401, { message: 'Invalid username or password' })
+    const { result, user } = await loginUser(body.username, body.password)
+
+    if (!await hasModuleAccess(user, Module.COMPANYPROFILE, AccessLevel.DASHBOARD)) {
+      throw new HTTPException(403, { message: 'Access denied' })
     }
-    if (!user.is_active) throw new HTTPException(403, { message: 'User is inactive' })
-    if (!await hasModuleAccess(user, Module.COMPANYPROFILE, AccessLevel.DASHBOARD)) throw new HTTPException(403, { message: 'Access denied' })
-    const now = toMysqlDatetime(new Date())
-    await updateRecord('users', user.id as string, { last_login_at: now, failed_login_attempts: 0, locked_until: null })
-    const token = await createAccessToken({ sub: user.id })
-    const { raw, hash, expiresAt } = generateRefreshToken()
-    await createRecord('refresh_tokens', { user_id: user.id, token_hash: hash, expires_at: toMysqlDatetime(expiresAt) })
-    let rn = ''; let rp: Record<string, unknown> = {}; const rid = user.role_id as string | undefined
-    if (rid) { const r = await getById('roles', rid); if (r) { rn = r.name as string; rp = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions as Record<string, unknown>) || {} } }
-    const pool = (await import('../db/mysql')).getRawPool()
-    const [pagePerms] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>(
-      'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
-      [user.id] as any
-    )
-    return c.json({ access_token: token, refresh_token: raw, token_type: 'bearer', user: { id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: rid, role_name: rn, permissions: rp, page_permissions: pagePerms.map(r => r.page_id), user_type: user.user_type || 'admin' } })
+
+    return c.json(result)
   } catch (e) { if (e instanceof HTTPException) throw e; console.error(e); throw new HTTPException(500, { message: 'Internal Server Error' }) }
 })
 
 cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string() })), async (c) => {
   const body = c.req.valid('json')
-  const tokenHash = await import('../auth/auth').then(m => m.hashRefreshToken(body.refresh_token))
+  const tokenHash = hashRefreshToken(body.refresh_token)
   const stored = await getByColumn('refresh_tokens', 'token_hash', tokenHash)
   if (!stored || stored.revoked) throw new HTTPException(401, { message: 'Invalid refresh token' })
   const expires = stored.expires_at as string | undefined
@@ -128,7 +123,7 @@ cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string()
 cp.post('/auth/logout', getCurrentUser, async (c) => {
   const user = c.get('user')
   const pool = (await import('../db/mysql')).getRawPool()
-  await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id] as any)
+  await pool.execute('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?', [user.id] as any)
   return c.json({ message: 'Logged out' })
 })
 
@@ -136,12 +131,14 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
   const user = c.get('user')
   let roleName = ''
   let rolePermissions: Record<string, unknown> = {}
+  let isSuperAdmin = false
   const roleId = user.role_id as string | undefined
   if (roleId) {
     const role = await getById('roles', roleId)
     if (role) {
       roleName = role.name as string
       rolePermissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : (role.permissions as Record<string, unknown>) || {}
+      isSuperAdmin = !!(role as any).is_superadmin
     }
   }
   const pool = (await import('../db/mysql')).getRawPool()
@@ -149,7 +146,7 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
     'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
     [user.id] as any
   )
-  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, page_permissions: pagePerms.map(r => r.page_id), user_type: user.user_type || 'admin', is_active: user.is_active ?? true })
+  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, page_permissions: pagePerms.map((r: any) => r.page_id), user_type: user.user_type || 'admin', is_active: user.is_active ?? true, is_superadmin: isSuperAdmin })
 })
 
 cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: z.string().optional(), email: z.string().optional(), full_name: z.string().optional(), avatar_url: z.string().optional(), old_password: z.string().optional(), new_password: z.string().optional() })), async (c) => {
@@ -200,12 +197,13 @@ cp.get('/settings', async (c) => {
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
   c.header('Pragma', 'no-cache')
   c.header('Expires', '0')
-  return c.json(await listAll('site_settings'))
+  const all = await listAll('site_settings')
+  return c.json(all.filter((s: any) => PUBLIC_SETTINGS_KEYS.has(s.key)))
 })
 
 cp.get('/settings/:key', async (c) => {
   const key = c.req.param('key')
-  if (!ALLOWED_KEYS.has(key)) throw new HTTPException(400, { message: `Unknown key: ${key}` })
+  if (!PUBLIC_SETTINGS_KEYS.has(key)) throw new HTTPException(400, { message: `Unknown key: ${key}` })
   const s = await getByColumn('site_settings', 'key', key)
   if (!s) throw new HTTPException(404, { message: 'Not found' })
   return c.json(s)
@@ -238,16 +236,16 @@ cp.get('/:entity/:slug', async (c) => {
 
 // ── Admin ─────────────────────────────────────────────────
 
-cp.put('/settings/:key', getCurrentUser, zValidator('json', z.object({ value: z.string() })), async (c) => {
+cp.put('/settings/:key', getCurrentUser, requireCpCrud, zValidator('json', z.object({ value: z.string() })), async (c) => {
   const key = c.req.param('key')
-  if (!ALLOWED_KEYS.has(key)) throw new HTTPException(400, { message: `Unknown key: ${key}` })
+  if (!ADMIN_SETTINGS_KEYS.has(key)) throw new HTTPException(400, { message: `Unknown key: ${key}` })
   const body = c.req.valid('json')
   const existing = await getByColumn('site_settings', 'key', key)
   if (existing) { const r = await updateRecord('site_settings', existing.key as string, { value: body.value }); emit('companyprofile', 'change'); return c.json(r) }
   const r = await createRecord('site_settings', { key, value: body.value }); emit('companyprofile', 'change'); return c.json(r)
 })
 
-cp.put('/contact-info', getCurrentUser, zValidator('json', z.object({
+cp.put('/contact-info', getCurrentUser, requireCpCrud, zValidator('json', z.object({
   phone_primary: z.string().optional(),
   phone_secondary: z.string().optional(),
   whatsapp: z.string().optional(),

@@ -33,6 +33,11 @@ notif.put('/templates/:id', getCurrentUser, requireNotificationCrud, zValidator(
   return c.json(r)
 })
 
+notif.delete('/templates/:id', getCurrentUser, requireNotificationCrud, async (c) => {
+  await deleteRecord('notification_templates', pid(c))
+  return c.json({ success: true })
+})
+
 // ═══════ Notifications ═══════
 notif.post('/send', getCurrentUser, requireNotificationCrud, zValidator('json', z.object({
   user_id: z.string().min(1), template_id: z.string().optional(), title: z.string().min(1),
@@ -69,8 +74,13 @@ notif.get('/my', getCurrentUser, async (c) => {
 })
 
 notif.put('/:id/read', getCurrentUser, async (c) => {
+  const user = c.get('user')
+  const notif_record = await getById('notifications', pid(c))
+  if (!notif_record) throw new HTTPException(404)
+  if ((notif_record as any).user_id !== user.id) {
+    throw new HTTPException(403, { message: 'You can only mark your own notifications as read' })
+  }
   const r = await updateRecord('notifications', pid(c), { is_read: true, read_at: new Date().toISOString() })
-  if (!r) throw new HTTPException(404)
   return c.json(r)
 })
 

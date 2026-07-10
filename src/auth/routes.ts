@@ -10,6 +10,8 @@ import {
   hashRefreshToken,
   verifyPassword,
 } from './auth'
+import { validatePassword } from './validators'
+import { loginUser } from './login'
 import { getCurrentUser } from '../middleware/auth'
 import { loginLimiter, refreshLimiter, profileLimiter, registerLimiter } from './rate-limiter'
 import {
@@ -25,9 +27,6 @@ import { publicUrl, saveUpload } from '../storage'
 import type { Variables } from '../types'
 
 const auth = new Hono<{ Variables: Variables }>()
-
-const LOCKOUT_THRESHOLD = 5
-const LOCKOUT_MINUTES = 15
 
 const loginSchema = z.object({
   username: z.string(),
@@ -48,95 +47,14 @@ const profileSchema = z.object({
 })
 
 auth.post('/login', zValidator('json', loginSchema), async (c) => {
-  loginLimiter.check(c)
+  await loginLimiter.checkAsync(c)
   const body = c.req.valid('json')
-  let user = await getByColumn('users', 'username', body.username)
-  if (!user) user = await getByColumn('users', 'email', body.username)
-
-  const fakeHash = '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXPm1QlFZqFOBmH39JcGpGtI7qJkGzS'
-  const storedHash = (user && typeof user.password_hash === 'string') ? user.password_hash : fakeHash
-  const passwordValid = verifyPassword(body.password, storedHash)
-
-  if (!user) {
-    throw new HTTPException(401, { message: 'Invalid username or password' })
-  }
-
-  if (!passwordValid) {
-    const attempts = ((user.failed_login_attempts as number) || 0) + 1
-    const update: Record<string, unknown> = { failed_login_attempts: attempts }
-    if (attempts >= LOCKOUT_THRESHOLD) {
-      const lockedUntil = toMysqlDatetime(new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000))
-      update.locked_until = lockedUntil
-      await updateRecord('users', user.id as string, update)
-      throw new HTTPException(429, {
-        message: `Account locked due to ${LOCKOUT_THRESHOLD} failed attempts. Try again in ${LOCKOUT_MINUTES} minute(s)`,
-      })
-    }
-    await updateRecord('users', user.id as string, update)
-    throw new HTTPException(401, { message: 'Invalid username or password' })
-  }
-
-  if (!user.is_active) {
-    throw new HTTPException(403, { message: 'User is inactive' })
-  }
-
-  const lockedUntil = user.locked_until as string | undefined
-  if (lockedUntil) {
-    const lockedDt = new Date(lockedUntil.replace('Z', '+00:00'))
-    if (lockedDt > new Date()) {
-      const remaining = Math.floor((lockedDt.getTime() - Date.now()) / 60000)
-      throw new HTTPException(429, { message: `Account locked. Try again in ${remaining} minute(s)` })
-    }
-  }
-
-  const now = toMysqlDatetime(new Date())
-  await updateRecord('users', user.id as string, {
-    last_login_at: now,
-    failed_login_attempts: 0,
-    locked_until: null,
-  })
-
-  const accessToken = await createAccessToken({ sub: user.id })
-  const { raw: rawRefresh, hash: refreshHash, expiresAt: refreshExpires } = generateRefreshToken()
-  await createRecord('refresh_tokens', {
-    user_id: user.id,
-    token_hash: refreshHash,
-    expires_at: toMysqlDatetime(refreshExpires),
-  })
-
-  let roleName = ''
-  const roleId = user.role_id as string | undefined
-  if (roleId) {
-    const role = await getById('roles', roleId)
-    if (role) roleName = role.name as string
-  }
-
-  const pool = getRawPool()
-  const [pagePerms] = await pool.execute<import('mysql2/promise').RowDataPacket[]>(
-    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
-    [user.id] as any
-  )
-
-  return c.json({
-    access_token: accessToken,
-    refresh_token: rawRefresh,
-    token_type: 'bearer',
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email || '',
-      full_name: user.full_name || '',
-      avatar_url: user.avatar_url || '',
-      role_id: roleId,
-      role_name: roleName,
-      user_type: user.user_type || 'admin',
-      page_permissions: pagePerms.map(r => r.page_id),
-    },
-  })
+  const { result } = await loginUser(body.username, body.password)
+  return c.json(result)
 })
 
 auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
-  refreshLimiter.check(c)
+  await refreshLimiter.checkAsync(c)
   const body = c.req.valid('json')
   const tokenHash = hashRefreshToken(body.refresh_token)
   const stored = await getByColumn('refresh_tokens', 'token_hash', tokenHash)
@@ -178,12 +96,14 @@ auth.get('/me', getCurrentUser, async (c) => {
   const user = c.get('user')
   let roleName = ''
   let rolePermissions: Record<string, unknown> = {}
+  let isSuperAdmin = false
   const roleId = user.role_id as string | undefined
   if (roleId) {
     const role = await getById('roles', roleId)
     if (role) {
       roleName = role.name as string
       rolePermissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : (role.permissions as Record<string, unknown>) || {}
+      isSuperAdmin = !!(role as any).is_superadmin
     }
   }
 
@@ -205,11 +125,12 @@ auth.get('/me', getCurrentUser, async (c) => {
     page_permissions: pagePerms.map(r => r.page_id),
     user_type: user.user_type || 'admin',
     is_active: user.is_active ?? true,
+    is_superadmin: isSuperAdmin,
   })
 })
 
 auth.put('/profile', getCurrentUser, zValidator('json', profileSchema), async (c) => {
-  profileLimiter.check(c)
+  await profileLimiter.checkAsync(c)
   const body = c.req.valid('json')
   const user = c.get('user')
 
@@ -225,6 +146,9 @@ auth.put('/profile', getCurrentUser, zValidator('json', profileSchema), async (c
     }
     if (!verifyPassword(body.old_password, user.password_hash as string)) {
       throw new HTTPException(400, { message: 'Old password is incorrect' })
+    }
+    try { validatePassword(body.new_password) } catch (e: any) {
+      throw new HTTPException(400, { message: e.message })
     }
     data.password_hash = hashPassword(body.new_password)
   }
@@ -299,8 +223,12 @@ const registerApplicantSchema = z.object({
 })
 
 auth.post('/register-applicant', zValidator('json', registerApplicantSchema), async (c) => {
-  registerLimiter.check(c)
+  await registerLimiter.checkAsync(c)
   const body = c.req.valid('json')
+
+  try { validatePassword(body.password) } catch (e: any) {
+    throw new HTTPException(400, { message: e.message })
+  }
 
   const existingUser = await getByColumn('users', 'username', body.username)
   if (existingUser) {
@@ -362,9 +290,20 @@ auth.post('/register-applicant', zValidator('json', registerApplicantSchema), as
   })
 })
 
-auth.post('/register', getCurrentUser, zValidator('json', loginSchema), async (c) => {
-  registerLimiter.check(c)
+const registerAdminSchema = z.object({
+  username: z.string().min(3).max(50),
+  password: z.string().min(8),
+  role_id: z.string().optional(),
+  user_type: z.string().optional(),
+})
+
+auth.post('/register', getCurrentUser, zValidator('json', registerAdminSchema), async (c) => {
+  await registerLimiter.checkAsync(c)
   const body = c.req.valid('json')
+
+  try { validatePassword(body.password) } catch (e: any) {
+    throw new HTTPException(400, { message: e.message })
+  }
 
   const existing = await getByColumn('users', 'username', body.username)
   if (existing) {
@@ -374,6 +313,9 @@ auth.post('/register', getCurrentUser, zValidator('json', loginSchema), async (c
   const user = await createRecord('users', {
     username: body.username,
     password_hash: hashPassword(body.password),
+    role_id: body.role_id || null,
+    user_type: body.user_type || 'admin',
+    is_active: true,
   })
 
   const token = await createAccessToken({ sub: user.id })
@@ -387,7 +329,7 @@ auth.post('/register', getCurrentUser, zValidator('json', loginSchema), async (c
 auth.post('/logout', getCurrentUser, async (c) => {
   const user = c.get('user')
   const pool = getRawPool()
-  await pool.execute('UPDATE refresh_tokens SET revoked = 1, updated_at = NOW() WHERE user_id = ?', [user.id] as any)
+  await pool.execute('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?', [user.id] as any)
   return c.json({ message: 'Logged out' })
 })
 
