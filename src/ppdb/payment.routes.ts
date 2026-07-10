@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
-import { requirePPDBAdmin, requireFinanceAccess } from './middleware'
+import { requireFinanceCrud } from './middleware'
 import {
   listAll, getById, getByColumn, createRecord,
   updateRecord, deleteRecord, searchPaginated, auditLog,
@@ -26,32 +26,32 @@ const stageSchema = z.object({
   max_installments: z.number().int().optional(),
 })
 
-payment.get('/stages', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.get('/stages', getCurrentUser, requireFinanceCrud, async (c) => {
   const wcId = c.req.query('wave_config_id')
   const rows = await listAll('payment_stages', { order: 'stage_number.asc', limit: 100 })
   if (wcId) return c.json(rows.filter((r: any) => r.wave_config_id === wcId))
   return c.json(rows)
 })
 
-payment.post('/stages', getCurrentUser, requirePPDBAdmin, zValidator('json', stageSchema), async (c) => {
+payment.post('/stages', getCurrentUser, requireFinanceCrud, zValidator('json', stageSchema), async (c) => {
   const body = c.req.valid('json')
   const row = await createRecord('payment_stages', { ...body, is_installment_allowed: body.is_installment_allowed ? 1 : 0 })
   return c.json(row, 201)
 })
 
-payment.put('/stages/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', stageSchema), async (c) => {
+payment.put('/stages/:id', getCurrentUser, requireFinanceCrud, zValidator('json', stageSchema), async (c) => {
   const row = await updateRecord('payment_stages', pid(c), { ...c.req.valid('json'), is_installment_allowed: c.req.valid('json').is_installment_allowed ? 1 : 0 })
   if (!row) throw new HTTPException(404, { message: 'Not found' })
   return c.json(row)
 })
 
-payment.delete('/stages/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.delete('/stages/:id', getCurrentUser, requireFinanceCrud, async (c) => {
   await deleteRecord('payment_stages', pid(c))
   return c.json({ success: true })
 })
 
 // ════════════ Invoices ════════════
-payment.post('/invoices/generate', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({ applicant_id: z.string().min(1) })), async (c) => {
+payment.post('/invoices/generate', getCurrentUser, requireFinanceCrud, zValidator('json', z.object({ applicant_id: z.string().min(1) })), async (c) => {
   const { applicant_id } = c.req.valid('json')
   const applicant = await getById('applicants', applicant_id)
   if (!applicant) throw new HTTPException(404, { message: 'Applicant not found' })
@@ -89,7 +89,7 @@ payment.get('/invoices/mine', getCurrentUser, async (c) => {
   return c.json(enriched)
 })
 
-payment.get('/invoices', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.get('/invoices', getCurrentUser, requireFinanceCrud, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
   const result = await searchPaginated('invoices', { page, perPage: 20, order: 'created_at.desc' })
   return c.json(result)
@@ -130,7 +130,7 @@ payment.post('/transactions', getCurrentUser, async (c) => {
   return c.json(txn, 201)
 })
 
-payment.get('/transactions', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.get('/transactions', getCurrentUser, requireFinanceCrud, async (c) => {
   const status = c.req.query('status') || ''
   const page = parseInt(c.req.query('page') || '1')
   const filters: Record<string, unknown> = {}
@@ -139,7 +139,7 @@ payment.get('/transactions', getCurrentUser, requirePPDBAdmin, async (c) => {
   return c.json(result)
 })
 
-payment.put('/transactions/:id/verify', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+payment.put('/transactions/:id/verify', getCurrentUser, requireFinanceCrud, zValidator('json', z.object({
   status: z.enum(['verified', 'rejected']),
   notes: z.string().nullable().optional(),
 })), async (c) => {
@@ -172,26 +172,26 @@ const discountSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
-payment.get('/discounts', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.get('/discounts', getCurrentUser, requireFinanceCrud, async (c) => {
   return c.json(await listAll('discounts', { order: 'created_at.desc', limit: 100 }))
 })
 
-payment.post('/discounts', getCurrentUser, requirePPDBAdmin, zValidator('json', discountSchema), async (c) => {
+payment.post('/discounts', getCurrentUser, requireFinanceCrud, zValidator('json', discountSchema), async (c) => {
   return c.json(await createRecord('discounts', c.req.valid('json')), 201)
 })
 
-payment.put('/discounts/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', discountSchema), async (c) => {
+payment.put('/discounts/:id', getCurrentUser, requireFinanceCrud, zValidator('json', discountSchema), async (c) => {
   const row = await updateRecord('discounts', pid(c), c.req.valid('json'))
   if (!row) throw new HTTPException(404, { message: 'Not found' })
   return c.json(row)
 })
 
-payment.delete('/discounts/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.delete('/discounts/:id', getCurrentUser, requireFinanceCrud, async (c) => {
   await deleteRecord('discounts', pid(c))
   return c.json({ success: true })
 })
 
-payment.post('/discounts/assign', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+payment.post('/discounts/assign', getCurrentUser, requireFinanceCrud, zValidator('json', z.object({
   applicant_id: z.string().min(1),
   discount_id: z.string().min(1),
   invoice_id: z.string().nullable().optional(),
@@ -216,7 +216,7 @@ payment.post('/discounts/assign', getCurrentUser, requirePPDBAdmin, zValidator('
 })
 
 // ════════════ Installments ════════════
-payment.get('/installments/:invoiceId', getCurrentUser, requirePPDBAdmin, async (c) => {
+payment.get('/installments/:invoiceId', getCurrentUser, requireFinanceCrud, async (c) => {
   const plans = await listAll('installment_plans', { limit: 10 })
   const plan = plans.find((p: any) => p.invoice_id === c.req.param('invoiceId'))
   if (!plan) return c.json(null)
@@ -224,7 +224,7 @@ payment.get('/installments/:invoiceId', getCurrentUser, requirePPDBAdmin, async 
   return c.json({ ...plan, schedules: schedules.filter((s: any) => s.plan_id === plan.id) })
 })
 
-payment.post('/installments/:invoiceId', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+payment.post('/installments/:invoiceId', getCurrentUser, requireFinanceCrud, zValidator('json', z.object({
   total_installments: z.number().int().min(2),
 })), async (c) => {
   const body = c.req.valid('json')

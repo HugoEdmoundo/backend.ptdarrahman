@@ -31,9 +31,9 @@ export function requireModuleAccess(module: string, required: AccessLevel = 'rea
   }
 }
 
-// Shortcuts
+// Shortcuts — satu untuk akses PPDB umum, lainnya per sub-module
 export const requirePPDBAdmin = requireModuleAccess('ppdb', 'crud')
-export const requireFinanceAccess = requireModuleAccess('payment', 'read')
-export const requireSelectionAccess = requireModuleAccess('selection', 'read')
-export const requireNotificationAccess = requireModuleAccess('notification', 'read')
-export const requireDashboardAccess = requireModuleAccess('dashboard', 'read')
+export const requireFinanceCrud = requireModuleAccess('payment', 'crud')
+export const requireSelectionCrud = requireModuleAccess('selection', 'crud')
+export const requireNotificationCrud = requireModuleAccess('notification', 'crud')
+export const requireDashboardCrud = requireModuleAccess('dashboard', 'crud')

@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { getCurrentUser } from '../middleware/auth'
-import { requirePPDBAdmin, requireDashboardAccess } from './middleware'
+import { requireDashboardCrud } from './middleware'
 import { listAll, getById, getByColumn, searchPaginated, getRawPool } from '../db/mysql'
 import type { Variables } from '../types'
 
 const dashboard = new Hono<{ Variables: Variables }>()
 
-dashboard.get('/stats', getCurrentUser, requirePPDBAdmin, async (c) => {
+dashboard.get('/stats', getCurrentUser, requireDashboardCrud, async (c) => {
   const pool = getRawPool()
   const [r1] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants')
   const [r2] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants WHERE current_status = ?', ['registered'])
@@ -29,13 +29,13 @@ dashboard.get('/stats', getCurrentUser, requirePPDBAdmin, async (c) => {
   })
 })
 
-dashboard.get('/audit-logs', getCurrentUser, requirePPDBAdmin, async (c) => {
+dashboard.get('/audit-logs', getCurrentUser, requireDashboardCrud, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
   const result = await searchPaginated('audit_log', { page, perPage: 20, order: 'created_at.desc' })
   return c.json(result)
 })
 
-dashboard.get('/reports/summary', getCurrentUser, requirePPDBAdmin, async (c) => {
+dashboard.get('/reports/summary', getCurrentUser, requireDashboardCrud, async (c) => {
   const pool = getRawPool()
 
   // Applicants per wave

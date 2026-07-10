@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
-import { requirePPDBAdmin, requireSelectionAccess } from './middleware'
+import { requireSelectionCrud } from './middleware'
 import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog } from '../db/mysql'
 import type { Variables } from '../types'
 
@@ -18,21 +18,21 @@ const testTypeSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
-selection.get('/test-types', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/test-types', getCurrentUser, requireSelectionCrud, async (c) => {
   return c.json(await listAll('test_types', { order: 'created_at.asc', limit: 100 }))
 })
 
-selection.post('/test-types', getCurrentUser, requirePPDBAdmin, zValidator('json', testTypeSchema), async (c) => {
+selection.post('/test-types', getCurrentUser, requireSelectionCrud, zValidator('json', testTypeSchema), async (c) => {
   return c.json(await createRecord('test_types', c.req.valid('json')), 201)
 })
 
-selection.put('/test-types/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', testTypeSchema), async (c) => {
+selection.put('/test-types/:id', getCurrentUser, requireSelectionCrud, zValidator('json', testTypeSchema), async (c) => {
   const r = await updateRecord('test_types', pid(c), c.req.valid('json'))
   if (!r) throw new HTTPException(404)
   return c.json(r)
 })
 
-selection.delete('/test-types/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.delete('/test-types/:id', getCurrentUser, requireSelectionCrud, async (c) => {
   await deleteRecord('test_types', pid(c))
   return c.json({ success: true })
 })
@@ -44,24 +44,24 @@ const paramSchema = z.object({
   passing_score: z.number().nullable().optional(), sort_order: z.number().optional(),
 })
 
-selection.get('/test-parameters', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/test-parameters', getCurrentUser, requireSelectionCrud, async (c) => {
   const tid = c.req.query('test_type_id')
   const rows = await listAll('test_parameters', { order: 'sort_order.asc', limit: 100 })
   if (tid) return c.json(rows.filter((r: any) => r.test_type_id === tid))
   return c.json(rows)
 })
 
-selection.post('/test-parameters', getCurrentUser, requirePPDBAdmin, zValidator('json', paramSchema), async (c) => {
+selection.post('/test-parameters', getCurrentUser, requireSelectionCrud, zValidator('json', paramSchema), async (c) => {
   return c.json(await createRecord('test_parameters', c.req.valid('json')), 201)
 })
 
-selection.put('/test-parameters/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', paramSchema), async (c) => {
+selection.put('/test-parameters/:id', getCurrentUser, requireSelectionCrud, zValidator('json', paramSchema), async (c) => {
   const r = await updateRecord('test_parameters', pid(c), c.req.valid('json'))
   if (!r) throw new HTTPException(404)
   return c.json(r)
 })
 
-selection.delete('/test-parameters/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.delete('/test-parameters/:id', getCurrentUser, requireSelectionCrud, async (c) => {
   await deleteRecord('test_parameters', pid(c))
   return c.json({ success: true })
 })
@@ -75,7 +75,7 @@ const sessionSchema = z.object({
   status: z.string().optional(),
 })
 
-selection.get('/sessions', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/sessions', getCurrentUser, requireSelectionCrud, async (c) => {
   const wc = c.req.query('wave_config_id')
   const page = parseInt(c.req.query('page') || '1')
   const filters: Record<string, unknown> = {}
@@ -88,25 +88,25 @@ selection.get('/sessions', getCurrentUser, requirePPDBAdmin, async (c) => {
   return c.json({ data: enriched, total: result.total })
 })
 
-selection.post('/sessions', getCurrentUser, requirePPDBAdmin, zValidator('json', sessionSchema), async (c) => {
+selection.post('/sessions', getCurrentUser, requireSelectionCrud, zValidator('json', sessionSchema), async (c) => {
   const user = c.get('user')
   const row = await createRecord('test_sessions', { ...c.req.valid('json'), created_by: user.id })
   return c.json(row, 201)
 })
 
-selection.put('/sessions/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', sessionSchema), async (c) => {
+selection.put('/sessions/:id', getCurrentUser, requireSelectionCrud, zValidator('json', sessionSchema), async (c) => {
   const r = await updateRecord('test_sessions', pid(c), c.req.valid('json'))
   if (!r) throw new HTTPException(404)
   return c.json(r)
 })
 
-selection.delete('/sessions/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.delete('/sessions/:id', getCurrentUser, requireSelectionCrud, async (c) => {
   await deleteRecord('test_sessions', pid(c))
   return c.json({ success: true })
 })
 
 // Assign applicant to session
-selection.post('/sessions/:id/assign', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+selection.post('/sessions/:id/assign', getCurrentUser, requireSelectionCrud, zValidator('json', z.object({
   applicant_id: z.string().min(1),
 })), async (c) => {
   const body = c.req.valid('json')
@@ -131,7 +131,7 @@ selection.get('/applicants/me/sessions', getCurrentUser, async (c) => {
 })
 
 // ═══════ Test Results & Scores ═══════
-selection.get('/results', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/results', getCurrentUser, requireSelectionCrud, async (c) => {
   const aid = c.req.query('applicant_id')
   const page = parseInt(c.req.query('page') || '1')
   const filters: Record<string, unknown> = {}
@@ -140,7 +140,7 @@ selection.get('/results', getCurrentUser, requirePPDBAdmin, async (c) => {
   return c.json(result)
 })
 
-selection.post('/results', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+selection.post('/results', getCurrentUser, requireSelectionCrud, zValidator('json', z.object({
   applicant_id: z.string().min(1), test_type_id: z.string().min(1),
   total_score: z.number().nullable().optional(), is_passed: z.boolean().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -209,30 +209,30 @@ const gradRuleSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
-selection.get('/graduation-rules', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/graduation-rules', getCurrentUser, requireSelectionCrud, async (c) => {
   const wc = c.req.query('wave_config_id')
   const rows = await listAll('graduation_rules', { limit: 50 })
   if (wc) return c.json(rows.filter((r: any) => r.wave_config_id === wc))
   return c.json(rows)
 })
 
-selection.post('/graduation-rules', getCurrentUser, requirePPDBAdmin, zValidator('json', gradRuleSchema), async (c) => {
+selection.post('/graduation-rules', getCurrentUser, requireSelectionCrud, zValidator('json', gradRuleSchema), async (c) => {
   return c.json(await createRecord('graduation_rules', { ...c.req.valid('json'), must_pass_all_tests: c.req.valid('json').must_pass_all_tests ? 1 : 0 }), 201)
 })
 
-selection.put('/graduation-rules/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', gradRuleSchema), async (c) => {
+selection.put('/graduation-rules/:id', getCurrentUser, requireSelectionCrud, zValidator('json', gradRuleSchema), async (c) => {
   const r = await updateRecord('graduation_rules', pid(c), { ...c.req.valid('json'), must_pass_all_tests: c.req.valid('json').must_pass_all_tests ? 1 : 0 })
   if (!r) throw new HTTPException(404)
   return c.json(r)
 })
 
-selection.delete('/graduation-rules/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.delete('/graduation-rules/:id', getCurrentUser, requireSelectionCrud, async (c) => {
   await deleteRecord('graduation_rules', pid(c))
   return c.json({ success: true })
 })
 
 // Set graduation for applicant
-selection.post('/graduations', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
+selection.post('/graduations', getCurrentUser, requireSelectionCrud, zValidator('json', z.object({
   applicant_id: z.string().min(1),
   is_graduated: z.boolean(),
   graduation_rank: z.number().int().nullable().optional(),
@@ -271,7 +271,7 @@ selection.get('/applicants/me/graduation', getCurrentUser, async (c) => {
 })
 
 // Admin: list all graduations
-selection.get('/graduations', getCurrentUser, requirePPDBAdmin, async (c) => {
+selection.get('/graduations', getCurrentUser, requireSelectionCrud, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
   const result = await searchPaginated('applicant_graduations', { page, perPage: 20, order: 'graduation_rank.asc' })
   const enriched = await Promise.all((result.data as any[]).map(async (g) => {
