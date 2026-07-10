@@ -12,6 +12,7 @@ import {
   deleteRecord,
   searchPaginated,
   auditLog,
+  getRawPool,
 } from '../db/mysql'
 import { requirePPDBAdmin } from './middleware'
 import type { Variables } from '../types'
@@ -615,6 +616,18 @@ ppdb.post('/applicants/register', getCurrentUser, zValidator('json', applicantRe
 
   await auditLog({ userId, userUsername: user.username as string, action: 'CREATE', entityType: 'applicants', entityId: applicant.id as string })
 
+  // Auto-generate Tahap 1 invoice (stage_number = 1)
+  const stages = await listAll('payment_stages', { order: 'stage_number.asc', limit: 20 })
+  const stage1 = stages.find((s: any) => s.wave_config_id === body.wave_config_id && s.stage_number === 1)
+  if (stage1) {
+    const invNumber = `INV-${regNumber.replace('PPDB-', '')}-01`
+    await createRecord('invoices', {
+      applicant_id: applicant.id, payment_stage_id: stage1.id, invoice_number: invNumber,
+      amount: stage1.amount, discount_amount: 0, total_amount: stage1.amount,
+      status: 'unpaid', due_date: stage1.due_date || null,
+    })
+  }
+
   return c.json(applicant, 201)
 })
 
@@ -901,6 +914,29 @@ ppdb.get('/applicants/me/documents', getCurrentUser, async (c) => {
 
   const docs = await listAll('applicant_documents', { order: 'created_at.desc', limit: 50 })
   return c.json(docs.filter((d: any) => d.applicant_id === applicant.id))
+})
+
+// ════════════════════════════════════════════════════════
+// Public: list active wave-configs (no auth)
+// ════════════════════════════════════════════════════════
+
+ppdb.get('/public/wave-configs', async (c) => {
+  const pool = getRawPool()
+  const [rows] = await pool.execute<any[]>(`
+    SELECT wc.id, wc.quota, wc.payment_stage_count,
+           w.name as wave_name, w.wave_number, w.start_date as wave_start, w.end_date as wave_end,
+           el.name as level_name, el.code as level_code, el.description as level_desc,
+           rc.name as category_name, rc.code as category_code, rc.description as category_desc,
+           pp.name as period_name, pp.academic_year, pp.description as period_desc
+    FROM wave_configurations wc
+    JOIN ppdb_waves w ON w.id = wc.wave_id AND w.status = 'active'
+    JOIN education_levels el ON el.id = wc.level_id AND el.is_active = 1
+    JOIN registration_categories rc ON rc.id = wc.category_id AND rc.is_active = 1
+    JOIN ppdb_periods pp ON pp.id = w.period_id AND pp.status = 'active'
+    WHERE wc.status = 'active'
+    ORDER BY pp.start_date DESC, w.wave_number ASC, el.sort_order ASC
+  `)
+  return c.json(rows)
 })
 
 // Admin: document review queue

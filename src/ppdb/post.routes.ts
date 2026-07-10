@@ -4,7 +4,10 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
 import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog } from '../db/mysql'
+import { generateMou, generateSuratPenerimaan } from '../services/pdf'
 import type { Variables } from '../types'
+import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
 
 const post = new Hono<{ Variables: Variables }>()
 
@@ -45,7 +48,29 @@ post.post('/mou/generate', getCurrentUser, requireAdmin, zValidator('json', z.ob
   const { applicant_id, template_id } = c.req.valid('json')
   const applicant = await getById('applicants', applicant_id)
   if (!applicant) throw new HTTPException(404, { message: 'Applicant not found' })
-  const row = await createRecord('applicant_mous', { applicant_id, template_id, status: 'pending' })
+
+  const profile = await getByColumn('applicant_profiles', 'applicant_id', applicant_id)
+  const template = await getById('mou_templates', template_id)
+
+  const fn = `mou-${applicant_id}-${Date.now()}.pdf`
+  const dir = path.join(process.cwd(), 'uploads', 'mou')
+  await fs.mkdir(dir, { recursive: true })
+
+  const appName: string = profile?.full_name ? String(profile.full_name) : String(applicant.registration_number)
+  const pdfBytes = await generateMou({
+    applicantName: appName,
+    registrationNumber: applicant.registration_number as string,
+    parentName: 'Orang Tua/Wali',
+    levelName: '',
+    categoryName: '',
+    templateContent: template?.content as string || undefined,
+  })
+  await fs.writeFile(path.join(dir, fn), pdfBytes)
+
+  const row = await createRecord('applicant_mous', {
+    applicant_id, template_id, status: 'pending',
+    generated_file_url: `/uploads/mou/${fn}`,
+  })
   return c.json(row, 201)
 })
 
@@ -98,6 +123,32 @@ post.put('/mou/:id/review', getCurrentUser, requireAdmin, zValidator('json', z.o
   const body = c.req.valid('json')
   const r = await updateRecord('applicant_mous', pid(c), body)
   if (!r) throw new HTTPException(404)
+
+  // Auto-generate Tahap 2 invoice when MOU approved
+  if (body.status === 'signed') {
+    const mou = await getById('applicant_mous', pid(c))
+    if (mou) {
+      const applicant = await getById('applicants', mou.applicant_id as string)
+      if (applicant) {
+        const stages = await listAll('payment_stages', { order: 'stage_number.asc', limit: 20 })
+        const wcId = applicant.wave_config_id as string
+        const stage2 = stages.find((s: any) => s.wave_config_id === wcId && s.stage_number === 2)
+        if (stage2) {
+          const existingInvoices = await listAll('invoices', { limit: 200 })
+          const exists = existingInvoices.some((inv: any) => inv.applicant_id === applicant.id && inv.payment_stage_id === stage2.id)
+          if (!exists) {
+            const invNumber = `INV-${String(applicant.registration_number || '').replace('PPDB-', '')}-02`
+            await createRecord('invoices', {
+              applicant_id: applicant.id, payment_stage_id: stage2.id, invoice_number: invNumber,
+              amount: stage2.amount, discount_amount: 0, total_amount: stage2.amount,
+              status: 'unpaid', due_date: stage2.due_date || null,
+            })
+          }
+        }
+      }
+    }
+  }
+
   return c.json(r)
 })
 
@@ -113,10 +164,30 @@ post.post('/acceptance-letters/generate', getCurrentUser, requireAdmin, zValidat
 })), async (c) => {
   const { applicant_id } = c.req.valid('json')
   const user = c.get('user')
+  const applicant = await getById('applicants', applicant_id)
+  if (!applicant) throw new HTTPException(404, { message: 'Applicant not found' })
+
+  const profile = await getByColumn('applicant_profiles', 'applicant_id', applicant_id)
   const letterNumber = `SKP/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`
+  const issuedDate = new Date().toISOString().split('T')[0]
+
+  const fn = `letter-${applicant_id}-${Date.now()}.pdf`
+  const dir = path.join(process.cwd(), 'uploads', 'letters')
+  await fs.mkdir(dir, { recursive: true })
+
+  const appName2: string = profile?.full_name ? String(profile.full_name) : String(applicant.registration_number)
+  const pdfBytes = await generateSuratPenerimaan({
+    applicantName: appName2,
+    registrationNumber: applicant.registration_number as string,
+    letterNumber, issuedDate,
+    levelName: '', categoryName: '',
+  })
+  await fs.writeFile(path.join(dir, fn), pdfBytes)
+
   const row = await createRecord('acceptance_letters', {
     applicant_id, letter_number: letterNumber,
-    issued_date: new Date().toISOString().split('T')[0], issued_by: user.id,
+    issued_date: issuedDate, issued_by: user.id,
+    pdf_url: `/uploads/letters/${fn}`,
   })
   return c.json(row, 201)
 })

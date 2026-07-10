@@ -53,6 +53,7 @@ app.route('/payment', paymentRoutes)
 app.route('/selection', selectionRoutes)
 app.route('/notif', notifRoutes)
 app.route('/dashboard', dashboardRoutes)
+app.route('/post', postRoutes)
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) return c.json({ detail: err.message }, err.status)

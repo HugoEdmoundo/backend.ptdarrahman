@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
 import { requireNotificationCrud } from './middleware'
 import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated } from '../db/mysql'
+import { sendEmail } from '../services/email'
 import type { Variables } from '../types'
 
 const notif = new Hono<{ Variables: Variables }>()
@@ -37,7 +38,23 @@ notif.post('/send', getCurrentUser, requireNotificationCrud, zValidator('json', 
   user_id: z.string().min(1), template_id: z.string().optional(), title: z.string().min(1),
   message: z.string().min(1), channel: z.string().optional(),
 })), async (c) => {
-  return c.json(await createRecord('notifications', { ...c.req.valid('json'), is_read: false }), 201)
+  const body = c.req.valid('json')
+  const row = await createRecord('notifications', { ...body, is_read: false })
+
+  if (body.channel === 'email') {
+    const user = await getById('users', body.user_id)
+    if (user && (user as any).email) {
+      const html = `<div style="font-family:sans-serif;max-width:600px;margin:auto">
+        <h2 style="color:#166534">${body.title}</h2>
+        <p style="color:#374151;line-height:1.6">${body.message.replace(/\n/g, '<br>')}</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+        <p style="color:#9ca3af;font-size:12px">PPDB Arrahman — Notifikasi otomatis</p>
+      </div>`
+      sendEmail((user as any).email, body.title, html).catch(() => {})
+    }
+  }
+
+  return c.json(row, 201)
 })
 
 notif.get('/history', getCurrentUser, requireNotificationCrud, async (c) => {
