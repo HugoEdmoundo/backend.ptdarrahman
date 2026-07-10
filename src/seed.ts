@@ -19,6 +19,7 @@ async function main() {
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE,
+    multipleStatements: true,
   })
 
   console.log(`📡 Connected to MySQL: ${process.env.MYSQL_DATABASE}`)
@@ -456,9 +457,61 @@ async function main() {
   }
   console.log(`   ✅ ${modulesData.length} modules seeded`)
 
-  // 17. Verify
+  // 17. Apply file_uploads migration
+  console.log('📋 Applying file_uploads migration ...')
+  try {
+    const mig005 = readFileSync(join(__dirname, '../migrations/005_file_uploads.sql'), 'utf8')
+    await conn.query(mig005)
+    console.log('   ✅ file_uploads schema applied')
+  } catch (e: any) { console.log(`   ⚠️ file_uploads: ${e.message}`) }
+
+  // 18. Apply PPDB migrations (008-015)
+  const ppdbMigrations = [
+    '008_ppdb_config.sql',
+    '009_ppdb_applicant.sql',
+    '010_ppdb_documents.sql',
+    '011_ppdb_selection.sql',
+    '012_ppdb_payment.sql',
+    '013_ppdb_mou_acceptance.sql',
+    '014_ppdb_mpls_calendar.sql',
+    '015_ppdb_notif_dashboard.sql',
+  ]
+  console.log('📋 Applying PPDB migrations ...')
+  for (const migFile of ppdbMigrations) {
+    try {
+      const mig = readFileSync(join(__dirname, `../migrations/${migFile}`), 'utf8')
+      await conn.query(mig)
+    } catch (e: any) { console.log(`   ⚠️ ${migFile}: ${e.message}`) }
+  }
+  console.log('   ✅ PPDB migrations applied')
+
+  // 18b. Apply PPDB module/page permissions expansion
+  console.log('📋 Applying PPDB module/page permissions expansion ...')
+  try {
+    const mig016 = readFileSync(join(__dirname, '../migrations/016_ppdb_modules_pages.sql'), 'utf8')
+    await conn.query(mig016)
+    console.log('   ✅ PPDB modules & pages expanded')
+  } catch (e: any) { console.log(`   ⚠️ 016: ${e.message}`) }
+
+  // 19. Seed PPDB reference data
+  console.log('🌱 Seeding PPDB reference data ...')
+  const ppdbSeeds = [
+    'roles.sql',
+    'education_levels.sql',
+    'registration_categories.sql',
+    'test_types.sql',
+  ]
+  for (const seedFile of ppdbSeeds) {
+    try {
+      const seed = readFileSync(join(__dirname, `../seeds/ppdb/${seedFile}`), 'utf8')
+      await conn.query(seed)
+    } catch (e: any) { console.log(`   ⚠️ ${seedFile}: ${e.message}`) }
+  }
+  console.log('   ✅ PPDB reference data seeded')
+
+  // 20. Verify
   console.log('\n📊 Final verification:')
-  const tables = ['site_settings', 'contact_info', 'roles', 'users', 'news_articles', 'programs', 'facilities', 'staff', 'achievements', 'gallery_items', 'social_links', 'testimonials', 'modules', 'pages', 'user_page_permissions']
+  const tables = ['site_settings', 'contact_info', 'roles', 'users', 'news_articles', 'programs', 'facilities', 'staff', 'achievements', 'gallery_items', 'social_links', 'testimonials', 'modules', 'pages', 'user_page_permissions', 'file_uploads', 'education_levels', 'registration_categories', 'ppdb_periods', 'ppdb_waves', 'selection_flows', 'selection_flow_steps', 'wave_configurations', 'applicants', 'applicant_profiles', 'applicant_parents', 'applicant_status_histories', 'document_requirements', 'applicant_documents', 'test_types', 'test_parameters', 'test_sessions', 'applicant_test_sessions', 'applicant_test_results', 'applicant_test_scores', 'graduation_rules', 'applicant_graduations', 'payment_stages', 'invoices', 'payment_transactions', 'installment_plans', 'installment_schedules', 'discounts', 'applicant_discounts', 'mou_templates', 'applicant_mous', 'acceptance_letters', 're_registrations', 'mpls_schedules', 'applicant_mpls', 'academic_calendars', 'notification_templates', 'notifications', 'dashboard_statistics']
   for (const t of tables) {
     try {
       const [rows] = await conn.execute<any[]>(`SELECT COUNT(*) as cnt FROM \`${t}\``)

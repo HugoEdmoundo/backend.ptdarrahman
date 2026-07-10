@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { zValidator } from '@hono/zod-validator'
@@ -288,6 +289,77 @@ auth.put('/profile', getCurrentUser, zValidator('json', profileSchema), async (c
     is_active: user.is_active ?? true,
   }
   return c.json(response)
+})
+
+const registerApplicantSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  password: z.string().min(8),
+  full_name: z.string().min(1),
+})
+
+auth.post('/register-applicant', zValidator('json', registerApplicantSchema), async (c) => {
+  registerLimiter.check(c)
+  const body = c.req.valid('json')
+
+  const existingUser = await getByColumn('users', 'username', body.username)
+  if (existingUser) {
+    throw new HTTPException(400, { message: 'Username already exists' })
+  }
+
+  const existingEmail = await getByColumn('users', 'email', body.email)
+  if (existingEmail) {
+    throw new HTTPException(400, { message: 'Email already exists' })
+  }
+
+  const role = await getByColumn('roles', 'name', 'Calon Murid')
+  if (!role) {
+    throw new HTTPException(500, { message: 'Default applicant role not found. Run seed first.' })
+  }
+
+  const userId = randomUUID()
+  const user = await createRecord('users', {
+    id: userId,
+    username: body.username,
+    email: body.email,
+    full_name: body.full_name,
+    password_hash: hashPassword(body.password),
+    role_id: role.id,
+    user_type: 'calon_murid',
+    is_active: true,
+  })
+
+  const accessToken = await createAccessToken({ sub: user.id })
+  const { raw: rawRefresh, hash: refreshHash, expiresAt: refreshExpires } = generateRefreshToken()
+  await createRecord('refresh_tokens', {
+    user_id: user.id,
+    token_hash: refreshHash,
+    expires_at: toMysqlDatetime(refreshExpires),
+  })
+
+  await auditLog({
+    userId: user.id as string,
+    userUsername: body.username,
+    action: 'register',
+    entityType: 'applicant',
+    entityId: user.id as string,
+    ipAddress: c.req.header('x-forwarded-for') || null,
+  })
+
+  return c.json({
+    access_token: accessToken,
+    refresh_token: rawRefresh,
+    token_type: 'bearer',
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email || '',
+      full_name: user.full_name || '',
+      role_id: role.id,
+      role_name: role.name,
+      user_type: 'calon_murid',
+    },
+  })
 })
 
 auth.post('/register', getCurrentUser, zValidator('json', loginSchema), async (c) => {

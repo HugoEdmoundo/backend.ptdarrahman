@@ -29,6 +29,15 @@ export async function getCurrentUser(c: Context<{ Variables: Variables }>, next:
     throw new HTTPException(403, { message: 'User is inactive' })
   }
 
+  // Load role permissions into user object
+  const roleId = user.role_id as string | undefined
+  if (roleId) {
+    const role = await getById('roles', roleId)
+    if (role?.permissions) {
+      ;(user as any).role_permissions = typeof role.permissions === 'string' ? JSON.parse(role.permissions as string) : role.permissions
+    }
+  }
+
   c.set('user', user)
   await next()
 }
