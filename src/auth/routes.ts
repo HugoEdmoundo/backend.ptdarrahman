@@ -109,7 +109,7 @@ auth.get('/me', getCurrentUser, async (c) => {
 
   const pool = getRawPool()
   const [pagePerms] = await pool.execute<import('mysql2/promise').RowDataPacket[]>(
-    'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
+    'SELECT p.`key` FROM user_page_permissions up JOIN pages p ON up.page_id = p.id WHERE up.user_id = ?',
     [user.id] as any
   )
 
@@ -122,7 +122,7 @@ auth.get('/me', getCurrentUser, async (c) => {
     role_id: roleId,
     role_name: roleName,
     permissions: rolePermissions,
-    page_permissions: pagePerms.map(r => r.page_id),
+    page_permissions: pagePerms.map(r => r.key),
     user_type: user.user_type || 'admin',
     is_active: user.is_active ?? true,
     is_superadmin: isSuperAdmin,
