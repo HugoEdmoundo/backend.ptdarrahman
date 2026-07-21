@@ -16,47 +16,37 @@ SET @not = (SELECT id FROM modules WHERE `key` = 'notification');
 SET @dash = (SELECT id FROM modules WHERE `key` = 'dashboard');
 SET @ppdb = (SELECT id FROM modules WHERE `key` = 'ppdb');
 
--- Pages untuk module PPDB (tambah yang belum ada)
-INSERT IGNORE INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
--- PPDB existing pages (skip if exists via IGNORE)
-(UUID(), @ppdb, 'dashboard', 'Dashboard', 'LayoutDashboard', 1, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'registration', 'Pendaftaran', 'FileText', 2, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'verification', 'Verifikasi Berkas', 'CheckCircle', 3, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'announcement', 'Pengumuman', 'Megaphone', 4, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'reports', 'Laporan', 'BarChart3', 5, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'settings', 'Pengaturan', 'Settings', 6, NOW(3), NOW(3)),
--- PPDB tambahan
-(UUID(), @ppdb, 'periods', 'Periode', 'Calendar', 7, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'waves', 'Gelombang', 'Layers', 8, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'documents-review', 'Review Dokumen', 'FileCheck', 9, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'mou', 'MOU', 'FileSignature', 10, NOW(3), NOW(3)),
-(UUID(), @ppdb, 'applicants', 'Daftar Pendaftar', 'Users', 11, NOW(3), NOW(3));
+-- Hapus pages lama untuk module-module PPDB agar sesuai dengan navigasi sidebar
+DELETE FROM pages WHERE module_id IN (@ppdb, @pay, @sel, @not, @dash);
 
--- Pages untuk module Payment
-INSERT IGNORE INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
-(UUID(), @pay, 'dashboard', 'Dashboard', 'LayoutDashboard', 1, NOW(3), NOW(3)),
-(UUID(), @pay, 'invoices', 'Invoice', 'Receipt', 2, NOW(3), NOW(3)),
-(UUID(), @pay, 'transactions', 'Transaksi', 'ArrowLeftRight', 3, NOW(3), NOW(3)),
-(UUID(), @pay, 'discounts', 'Diskon', 'Percent', 4, NOW(3), NOW(3)),
-(UUID(), @pay, 'installments', 'Cicilan', 'CalendarClock', 5, NOW(3), NOW(3));
+-- Pages untuk module PPDB
+INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
+(UUID(), @ppdb, 'periods', 'Periode & Gelombang', 'Calendar', 1, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'levels', 'Jenjang, Kategori & Alur', 'ListTree', 2, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'wave-configs', 'Konfigurasi Gelombang', 'Settings', 3, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'applicants', 'Pendaftar - Daftar', 'Users', 4, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'documents', 'Pendaftar - Verifikasi', 'FileCheck', 5, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'mou', 'Post-Seleksi - MOU', 'FileSignature', 6, NOW(3), NOW(3)),
+(UUID(), @ppdb, 're-registrations', 'Post-Seleksi - Daftar Ulang', 'UserPlus', 7, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'mpls', 'Post-Seleksi - MPLS', 'Flag', 8, NOW(3), NOW(3)),
+(UUID(), @ppdb, 'reports', 'Laporan PPDB', 'BarChart3', 9, NOW(3), NOW(3));
 
 -- Pages untuk module Selection
-INSERT IGNORE INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
-(UUID(), @sel, 'dashboard', 'Dashboard', 'LayoutDashboard', 1, NOW(3), NOW(3)),
-(UUID(), @sel, 'test-types', 'Jenis Tes', 'TestTube', 2, NOW(3), NOW(3)),
-(UUID(), @sel, 'sessions', 'Sesi Tes', 'CalendarCheck', 3, NOW(3), NOW(3)),
-(UUID(), @sel, 'scores', 'Penilaian', 'PenLine', 4, NOW(3), NOW(3)),
-(UUID(), @sel, 'graduations', 'Kelulusan', 'Award', 5, NOW(3), NOW(3));
+INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
+(UUID(), @sel, 'test-sessions', 'Jadwal Tes', 'CalendarCheck', 1, NOW(3), NOW(3)),
+(UUID(), @sel, 'test-scores', 'Nilai Tes', 'PenLine', 2, NOW(3), NOW(3)),
+(UUID(), @sel, 'graduations', 'Kelulusan', 'Award', 3, NOW(3), NOW(3));
+
+-- Pages untuk module Payment
+INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
+(UUID(), @pay, 'payments', 'Data Pembayaran', 'Wallet', 1, NOW(3), NOW(3)),
+(UUID(), @pay, 'invoices', 'Invoice', 'Receipt', 2, NOW(3), NOW(3)),
+(UUID(), @pay, 'discounts', 'Diskon', 'Percent', 3, NOW(3), NOW(3));
 
 -- Pages untuk module Notification
-INSERT IGNORE INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
-(UUID(), @not, 'dashboard', 'Dashboard', 'LayoutDashboard', 1, NOW(3), NOW(3)),
-(UUID(), @not, 'templates', 'Template', 'FileText', 2, NOW(3), NOW(3)),
-(UUID(), @not, 'send', 'Kirim Notifikasi', 'Send', 3, NOW(3), NOW(3)),
-(UUID(), @not, 'history', 'Riwayat', 'History', 4, NOW(3), NOW(3));
+INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
+(UUID(), @not, 'notifications', 'Manajemen Notifikasi', 'Bell', 1, NOW(3), NOW(3));
 
 -- Pages untuk module Dashboard
-INSERT IGNORE INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
-(UUID(), @dash, 'overview', 'Overview', 'LayoutDashboard', 1, NOW(3), NOW(3)),
-(UUID(), @dash, 'audit-log', 'Audit Log', 'ScrollText', 2, NOW(3), NOW(3)),
-(UUID(), @dash, 'reports', 'Laporan', 'BarChart3', 3, NOW(3), NOW(3));
+INSERT INTO pages (id, module_id, `key`, label, icon, sort_order, created_at, updated_at) VALUES
+(UUID(), @dash, '', 'Overview Dashboard', 'LayoutDashboard', 1, NOW(3), NOW(3));
