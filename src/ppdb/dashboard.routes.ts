@@ -100,7 +100,20 @@ dashboard.get('/reports/summary', getCurrentUser, requireDashboardCrud, async (c
     GROUP BY i.status
   `, [activePeriodId])
 
-  return c.json({ waveStats, levelStats, paymentStats })
+  const [r1] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ?`, [activePeriodId])
+  const [r2] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND a.current_status IN ('graduated', 'accepted')`, [activePeriodId])
+  const [r3] = await pool.execute<any[]>(`SELECT COUNT(i.id) as cnt FROM invoices i JOIN applicants a ON i.applicant_id = a.id JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND i.status = 'paid'`, [activePeriodId])
+  const [r4] = await pool.execute<any[]>(`SELECT COUNT(d.id) as cnt FROM applicant_documents d JOIN applicants a ON d.applicant_id = a.id JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND d.status = 'verified'`, [activePeriodId])
+
+  return c.json({ 
+    waveStats, 
+    levelStats, 
+    paymentStats,
+    total_applicants: r1[0].cnt,
+    graduated: r2[0].cnt,
+    paid_invoices: r3[0].cnt,
+    verified_documents: r4[0].cnt
+  })
 })
 
 // ════════ CSV Export Reports ════════
