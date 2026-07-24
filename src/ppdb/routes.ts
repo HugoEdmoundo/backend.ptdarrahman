@@ -142,6 +142,12 @@ ppdb.post('/periods', getCurrentUser, requirePPDBAdmin, zValidator('json', perio
 ppdb.put('/periods/:id', getCurrentUser, requirePPDBAdmin, zValidator('json', periodSchema), async (c) => {
   const body = c.req.valid('json')
   const user = c.get('user')
+  
+  if (body.status === 'active') {
+    const pool = getRawPool()
+    await pool.execute('UPDATE ppdb_periods SET status = ? WHERE status = ? AND id != ?', ['closed', 'active', pid(c)])
+  }
+
   const row = await updateRecord('ppdb_periods', pid(c), body)
   if (!row) throw new HTTPException(404, { message: 'Period not found' })
 

@@ -8,14 +8,34 @@ const dashboard = new Hono<{ Variables: Variables }>()
 
 dashboard.get('/stats', getCurrentUser, requireDashboardCrud, async (c) => {
   const pool = getRawPool()
-  const [r1] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants')
-  const [r2] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants WHERE current_status = ?', ['registered'])
-  const [r3] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants WHERE current_status = ?', ['testing'])
-  const [r4] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicants WHERE current_status = ?', ['accepted'])
-  const [r5] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM payment_transactions WHERE status = ?', ['pending'])
-  const [r6] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM applicant_documents WHERE status = ?', ['uploaded'])
+  const [activePeriods] = await pool.execute<any[]>('SELECT id FROM ppdb_periods WHERE status = ? LIMIT 1', ['active'])
+  const activePeriodId = activePeriods.length > 0 ? activePeriods[0].id : null
+
+  if (!activePeriodId) {
+    const [r7] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM ppdb_periods')
+    return c.json({
+      total_applicants: 0,
+      registered: 0,
+      testing: 0,
+      accepted: 0,
+      pending_payments: 0,
+      pending_documents: 0,
+      total_periods: r7[0].cnt,
+      total_waves: 0,
+      active_period_name: null,
+    })
+  }
+
+  const activePeriodName = activePeriods[0].name
+
+  const [r1] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ?`, [activePeriodId])
+  const [r2] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND a.current_status = ?`, [activePeriodId, 'registered'])
+  const [r3] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND a.current_status = ?`, [activePeriodId, 'testing'])
+  const [r4] = await pool.execute<any[]>(`SELECT COUNT(a.id) as cnt FROM applicants a JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND a.current_status = ?`, [activePeriodId, 'accepted'])
+  const [r5] = await pool.execute<any[]>(`SELECT COUNT(pt.id) as cnt FROM payment_transactions pt JOIN invoices i ON pt.invoice_id = i.id JOIN applicants a ON i.applicant_id = a.id JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND pt.status = ?`, [activePeriodId, 'pending'])
+  const [r6] = await pool.execute<any[]>(`SELECT COUNT(ad.id) as cnt FROM applicant_documents ad JOIN applicants a ON ad.applicant_id = a.id JOIN wave_configurations wc ON a.wave_config_id = wc.id JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ? AND ad.status = ?`, [activePeriodId, 'uploaded'])
   const [r7] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM ppdb_periods')
-  const [r8] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM ppdb_waves')
+  const [r8] = await pool.execute<any[]>('SELECT COUNT(*) as cnt FROM ppdb_waves WHERE period_id = ?', [activePeriodId])
 
   return c.json({
     total_applicants: r1[0].cnt,
@@ -26,6 +46,7 @@ dashboard.get('/stats', getCurrentUser, requireDashboardCrud, async (c) => {
     pending_documents: r6[0].cnt,
     total_periods: r7[0].cnt,
     total_waves: r8[0].cnt,
+    active_period_name: activePeriodName,
   })
 })
 
@@ -38,31 +59,46 @@ dashboard.get('/audit-logs', getCurrentUser, requireDashboardCrud, async (c) => 
 dashboard.get('/reports/summary', getCurrentUser, requireDashboardCrud, async (c) => {
   const pool = getRawPool()
 
+  const [activePeriods] = await pool.execute<any[]>('SELECT id FROM ppdb_periods WHERE status = ? LIMIT 1', ['active'])
+  const activePeriodId = activePeriods.length > 0 ? activePeriods[0].id : null
+
+  if (!activePeriodId) {
+    return c.json({ waveStats: [], levelStats: [], paymentStats: [] })
+  }
+
   // Applicants per wave
   const [waveStats] = await pool.execute<any[]>(`
     SELECT w.name as wave_name, COUNT(a.id) as total
     FROM ppdb_waves w
     LEFT JOIN wave_configurations wc ON wc.wave_id = w.id
     LEFT JOIN applicants a ON a.wave_config_id = wc.id
+    WHERE w.period_id = ?
     GROUP BY w.id, w.name
     ORDER BY w.wave_number
-  `)
+  `, [activePeriodId])
 
   // Applicants per level
   const [levelStats] = await pool.execute<any[]>(`
     SELECT el.name as level_name, COUNT(a.id) as total
     FROM education_levels el
     LEFT JOIN wave_configurations wc ON wc.level_id = el.id
+    LEFT JOIN ppdb_waves w ON wc.wave_id = w.id
     LEFT JOIN applicants a ON a.wave_config_id = wc.id
+    WHERE w.period_id = ?
     GROUP BY el.id, el.name
     ORDER BY el.sort_order
-  `)
+  `, [activePeriodId])
 
   // Payment summary
   const [paymentStats] = await pool.execute<any[]>(`
-    SELECT status, COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as total_amount
-    FROM invoices GROUP BY status
-  `)
+    SELECT i.status, COUNT(i.id) as cnt, COALESCE(SUM(i.total_amount), 0) as total_amount
+    FROM invoices i
+    JOIN applicants a ON i.applicant_id = a.id
+    JOIN wave_configurations wc ON a.wave_config_id = wc.id
+    JOIN ppdb_waves w ON wc.wave_id = w.id
+    WHERE w.period_id = ?
+    GROUP BY i.status
+  `, [activePeriodId])
 
   return c.json({ waveStats, levelStats, paymentStats })
 })
@@ -103,6 +139,7 @@ dashboard.get('/reports/export/applicants', getCurrentUser, requireDashboardCrud
     LEFT JOIN registration_categories rc ON rc.id = wc.category_id
     LEFT JOIN ppdb_waves pw ON pw.id = wc.wave_id
     LEFT JOIN ppdb_periods pp ON pp.id = pw.period_id
+    WHERE pp.status = 'active'
     ORDER BY a.created_at DESC
   `)
 
@@ -126,6 +163,10 @@ dashboard.get('/reports/export/payments', getCurrentUser, requireDashboardCrud, 
     LEFT JOIN applicant_profiles ap ON ap.applicant_id = a.id
     LEFT JOIN payment_stages ps ON ps.id = i.payment_stage_id
     LEFT JOIN payment_transactions t ON t.invoice_id = i.id
+    LEFT JOIN wave_configurations wc ON a.wave_config_id = wc.id
+    LEFT JOIN ppdb_waves pw ON wc.wave_id = pw.id
+    LEFT JOIN ppdb_periods pp ON pw.period_id = pp.id
+    WHERE pp.status = 'active'
     ORDER BY i.created_at DESC
   `)
 
@@ -147,6 +188,10 @@ dashboard.get('/reports/export/selection', getCurrentUser, requireDashboardCrud,
     LEFT JOIN applicant_test_results atr ON atr.applicant_id = a.id
     LEFT JOIN test_types tt ON tt.id = atr.test_type_id
     LEFT JOIN applicant_graduations ag ON ag.applicant_id = a.id
+    LEFT JOIN wave_configurations wc ON a.wave_config_id = wc.id
+    LEFT JOIN ppdb_waves pw ON wc.wave_id = pw.id
+    LEFT JOIN ppdb_periods pp ON pw.period_id = pp.id
+    WHERE pp.status = 'active'
     ORDER BY a.created_at DESC
   `)
 
@@ -167,7 +212,10 @@ dashboard.get('/reports/export/documents', getCurrentUser, requireDashboardCrud,
     JOIN applicant_profiles ap ON ap.applicant_id = a.id
     CROSS JOIN document_requirements dr
     LEFT JOIN applicant_documents ad ON ad.applicant_id = a.id AND ad.requirement_id = dr.id
-    WHERE dr.is_active = 1
+    LEFT JOIN wave_configurations wc ON a.wave_config_id = wc.id
+    LEFT JOIN ppdb_waves pw ON wc.wave_id = pw.id
+    LEFT JOIN ppdb_periods pp ON pw.period_id = pp.id
+    WHERE dr.is_active = 1 AND pp.status = 'active'
     ORDER BY a.registration_number, dr.sort_order
   `)
 
