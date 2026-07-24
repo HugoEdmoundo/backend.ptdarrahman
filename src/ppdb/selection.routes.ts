@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
 import { requireSelectionCrud } from './middleware'
-import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog } from '../db/mysql'
+import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog, getRawPool, getActivePeriodId, getWaveConfigIdsForPeriod } from '../db/mysql'
 import type { Variables } from '../types'
 
 const selection = new Hono<{ Variables: Variables }>()
@@ -78,8 +78,24 @@ const sessionSchema = z.object({
 selection.get('/sessions', getCurrentUser, requireSelectionCrud, async (c) => {
   const wc = c.req.query('wave_config_id')
   const page = parseInt(c.req.query('page') || '1')
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
   const filters: Record<string, unknown> = {}
-  if (wc) filters.wave_config_id = wc
+  if (wc) {
+    filters.wave_config_id = wc
+  } else if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      filters.wave_config_id = waveConfigIds
+    } else {
+      filters.wave_config_id = []
+    }
+  }
+
   const result = await searchPaginated('test_sessions', { page, perPage: 20, filters, order: 'test_date.desc' })
   const enriched = await Promise.all((result.data as any[]).map(async (s) => {
     const tt = await getById('test_types', s.test_type_id)
@@ -134,8 +150,35 @@ selection.get('/applicants/me/sessions', getCurrentUser, async (c) => {
 selection.get('/results', getCurrentUser, requireSelectionCrud, async (c) => {
   const aid = c.req.query('applicant_id')
   const page = parseInt(c.req.query('page') || '1')
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
   const filters: Record<string, unknown> = {}
-  if (aid) filters.applicant_id = aid
+  
+  if (aid) {
+    filters.applicant_id = aid
+  } else if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      if (appIds.length > 0) {
+        filters.applicant_id = appIds
+      } else {
+        filters.applicant_id = []
+      }
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
   const result = await searchPaginated('applicant_test_results', { page, perPage: 20, filters, order: 'created_at.desc' })
   return c.json(result)
 })
@@ -273,7 +316,34 @@ selection.get('/applicants/me/graduation', getCurrentUser, async (c) => {
 // Admin: list all graduations
 selection.get('/graduations', getCurrentUser, requireSelectionCrud, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
-  const result = await searchPaginated('applicant_graduations', { page, perPage: 20, order: 'graduation_rank.asc' })
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = {}
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      if (appIds.length > 0) {
+        filters.applicant_id = appIds
+      } else {
+        filters.applicant_id = []
+      }
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
+  const result = await searchPaginated('applicant_graduations', { page, perPage: 20, filters, order: 'graduation_rank.asc' })
   const enriched = await Promise.all((result.data as any[]).map(async (g) => {
     const applicant = await getById('applicants', g.applicant_id)
     const profile = applicant ? await getByColumn('applicant_profiles', 'applicant_id', applicant.id) : null

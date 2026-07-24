@@ -456,11 +456,29 @@ ppdb.delete('/flows/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
 
 ppdb.get('/wave-configs', getCurrentUser, requirePPDBAdmin, async (c) => {
   const waveId = c.req.query('wave_id')
-  const filters: Record<string, unknown> = {}
-  if (waveId) filters.wave_id = waveId
-
+  let periodId = c.req.query('period_id')
   const page = parseInt(c.req.query('page') || '1')
   const perPage = parseInt(c.req.query('perPage') || '50')
+
+  const filters: Record<string, unknown> = {}
+  if (waveId) {
+    filters.wave_id = waveId
+  } else {
+    // If no specific wave is requested, filter by period
+    if (!periodId && periodId !== 'all') {
+      periodId = await getActivePeriodId() || ''
+    }
+    if (periodId && periodId !== 'all') {
+      const pool = getRawPool()
+      const [rows] = await pool.execute<any[]>('SELECT id FROM ppdb_waves WHERE period_id = ?', [periodId])
+      const waveIds = rows.map((r: any) => r.id)
+      if (waveIds.length > 0) {
+        filters.wave_id = waveIds
+      } else {
+        filters.wave_id = []
+      }
+    }
+  }
   const result = await searchPaginated('wave_configurations', { page, perPage, filters, order: 'created_at.desc' })
   return c.json(result)
 })

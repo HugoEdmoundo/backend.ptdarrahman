@@ -29,8 +29,23 @@ const stageSchema = z.object({
 
 payment.get('/stages', getCurrentUser, requireFinanceCrud, async (c) => {
   const wcId = c.req.query('wave_config_id')
-  const rows = await listAll('payment_stages', { order: 'stage_number.asc', limit: 100 })
-  if (wcId) return c.json(rows.filter((r: any) => r.wave_config_id === wcId))
+  let periodId = c.req.query('period_id')
+  let rows = await listAll('payment_stages', { order: 'stage_number.asc', limit: 100 })
+  
+  if (wcId) {
+    return c.json(rows.filter((r: any) => r.wave_config_id === wcId))
+  }
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    const validWcs = new Set(waveConfigIds)
+    rows = rows.filter((r: any) => validWcs.has(r.wave_config_id))
+  }
+  
   return c.json(rows)
 })
 

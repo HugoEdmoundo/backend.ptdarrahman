@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getCurrentUser } from '../middleware/auth'
 import { requirePPDBAdmin } from './middleware'
-import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog } from '../db/mysql'
+import { listAll, getById, getByColumn, createRecord, updateRecord, deleteRecord, searchPaginated, auditLog, getActivePeriodId, getWaveConfigIdsForPeriod, getRawPool } from '../db/mysql'
 import { generateMou, generateSuratPenerimaan } from '../services/pdf'
 import type { Variables } from '../types'
 import * as fs from 'node:fs/promises'
@@ -76,7 +76,34 @@ post.post('/mou/generate', getCurrentUser, requirePPDBAdmin, zValidator('json', 
 
 post.get('/mou', getCurrentUser, requirePPDBAdmin, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
-  const result = await searchPaginated('applicant_mous', { page, perPage: 20, order: 'created_at.desc' })
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = {}
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      if (appIds.length > 0) {
+        filters.applicant_id = appIds
+      } else {
+        filters.applicant_id = []
+      }
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
+  const result = await searchPaginated('applicant_mous', { page, perPage: 20, filters, order: 'created_at.desc' })
   const enriched = await Promise.all((result.data as any[]).map(async (m) => {
     const applicant = await getById('applicants', m.applicant_id)
     const profile = applicant ? await getByColumn('applicant_profiles', 'applicant_id', applicant.id) : null
@@ -169,7 +196,34 @@ post.put('/mou/:id/review', getCurrentUser, requirePPDBAdmin, zValidator('json',
 // ═══════ Acceptance Letters ═══════
 post.get('/acceptance-letters', getCurrentUser, requirePPDBAdmin, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
-  const result = await searchPaginated('acceptance_letters', { page, perPage: 20, order: 'created_at.desc' })
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = {}
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      if (appIds.length > 0) {
+        filters.applicant_id = appIds
+      } else {
+        filters.applicant_id = []
+      }
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
+  const result = await searchPaginated('acceptance_letters', { page, perPage: 20, filters, order: 'created_at.desc' })
   return c.json(result)
 })
 
@@ -216,7 +270,34 @@ post.get('/acceptance-letters/mine', getCurrentUser, async (c) => {
 // ═══════ Re-registrations ═══════
 post.get('/re-registrations', getCurrentUser, requirePPDBAdmin, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
-  const result = await searchPaginated('re_registrations', { page, perPage: 20, order: 'created_at.desc' })
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = {}
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      if (appIds.length > 0) {
+        filters.applicant_id = appIds
+      } else {
+        filters.applicant_id = []
+      }
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
+  const result = await searchPaginated('re_registrations', { page, perPage: 20, filters, order: 'created_at.desc' })
   const enriched = await Promise.all((result.data as any[]).map(async (r) => {
     const applicant = await getById('applicants', r.applicant_id)
     const profile = applicant ? await getByColumn('applicant_profiles', 'applicant_id', applicant.id) : null
@@ -256,7 +337,15 @@ post.get('/re-registrations/mine', getCurrentUser, async (c) => {
 
 // ═══════ MPLS ═══════
 post.get('/mpls-schedules', getCurrentUser, requirePPDBAdmin, async (c) => {
-  return c.json(await listAll('mpls_schedules', { order: 'event_date.asc', limit: 100 }))
+  let periodId = c.req.query('period_id')
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+  let rows = await listAll('mpls_schedules', { order: 'event_date.asc', limit: 100 })
+  if (periodId && periodId !== 'all') {
+    rows = rows.filter((r: any) => r.period_id === periodId)
+  }
+  return c.json(rows)
 })
 
 post.post('/mpls-schedules', getCurrentUser, requirePPDBAdmin, zValidator('json', z.object({
@@ -300,7 +389,27 @@ post.get('/mpls/mine', getCurrentUser, async (c) => {
 })
 
 post.get('/mpls', getCurrentUser, requirePPDBAdmin, async (c) => {
-  const all = await listAll('applicant_mpls', { limit: 200 })
+  let periodId = c.req.query('period_id')
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  let all = await listAll('applicant_mpls', { limit: 200 })
+
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const validAppIds = new Set(appRows.map((r: any) => r.id))
+      all = all.filter((am: any) => validAppIds.has(am.applicant_id))
+    } else {
+      all = []
+    }
+  }
   const enriched = await Promise.all(all.map(async (am: any) => {
     const applicant = await getById('applicants', am.applicant_id)
     const profile = applicant ? await getByColumn('applicant_profiles', 'applicant_id', applicant.id) : null
