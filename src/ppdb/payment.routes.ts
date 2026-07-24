@@ -7,6 +7,7 @@ import { requireFinanceCrud } from './middleware'
 import {
   listAll, getById, getByColumn, createRecord,
   updateRecord, deleteRecord, searchPaginated, auditLog,
+  getRawPool, getActivePeriodId, getWaveConfigIdsForPeriod,
 } from '../db/mysql'
 import type { Variables } from '../types'
 
@@ -91,7 +92,30 @@ payment.get('/invoices/mine', getCurrentUser, async (c) => {
 
 payment.get('/invoices', getCurrentUser, requireFinanceCrud, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
-  const result = await searchPaginated('invoices', { page, perPage: 20, order: 'created_at.desc' })
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = {}
+
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      filters.applicant_id = appIds
+    } else {
+      filters.applicant_id = []
+    }
+  }
+
+  const result = await searchPaginated('invoices', { page, perPage: 20, filters, order: 'created_at.desc' })
   return c.json(result)
 })
 
@@ -143,8 +167,40 @@ payment.post('/transactions', getCurrentUser, async (c) => {
 payment.get('/transactions', getCurrentUser, requireFinanceCrud, async (c) => {
   const status = c.req.query('status') || ''
   const page = parseInt(c.req.query('page') || '1')
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
   const filters: Record<string, unknown> = {}
   if (status) filters.status = status
+
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      
+      if (appIds.length > 0) {
+        const placeholders2 = appIds.map(() => '?').join(',')
+        const [invRows] = await getRawPool().execute<any[]>(
+          `SELECT id FROM invoices WHERE applicant_id IN (${placeholders2})`,
+          appIds
+        )
+        filters.invoice_id = invRows.map((r: any) => r.id)
+      } else {
+        filters.invoice_id = []
+      }
+    } else {
+      filters.invoice_id = []
+    }
+  }
+
   const result = await searchPaginated('payment_transactions', { page, perPage: 20, filters, order: 'created_at.desc' })
   return c.json(result)
 })

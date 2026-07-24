@@ -188,8 +188,19 @@ export async function searchPaginated(
     const filterClauses: string[] = []
     for (const [col, val] of Object.entries(filters)) {
       if (val != null) {
-        filterClauses.push(`\`${col}\` = ?`)
-        params.push(val)
+        if (Array.isArray(val)) {
+          if (val.length > 0) {
+            const placeholders = val.map(() => '?').join(', ')
+            filterClauses.push(`\`${col}\` IN (${placeholders})`)
+            params.push(...val)
+          } else {
+            // Empty array means no match possible
+            filterClauses.push('1 = 0')
+          }
+        } else {
+          filterClauses.push(`\`${col}\` = ?`)
+          params.push(val)
+        }
       }
     }
     if (filterClauses.length > 0) {
@@ -242,4 +253,16 @@ export async function auditLog(params: {
 
 export function getRawPool(): Pool {
   return getPool()
+}
+
+export async function getActivePeriodId(): Promise<string | null> {
+  const pool = getRawPool()
+  const [rows] = await pool.execute<any[]>('SELECT id FROM ppdb_periods WHERE status = "active" LIMIT 1')
+  return rows.length > 0 ? rows[0].id : null
+}
+
+export async function getWaveConfigIdsForPeriod(periodId: string): Promise<string[]> {
+  const pool = getRawPool()
+  const [rows] = await pool.execute<any[]>('SELECT wc.id FROM wave_configurations wc JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ?', [periodId])
+  return rows.map((r: any) => r.id)
 }

@@ -13,6 +13,8 @@ import {
   searchPaginated,
   auditLog,
   getRawPool,
+  getActivePeriodId,
+  getWaveConfigIdsForPeriod,
 } from '../db/mysql'
 import { requirePPDBAdmin } from './middleware'
 import type { Variables } from '../types'
@@ -184,13 +186,17 @@ ppdb.delete('/periods/:id', getCurrentUser, requirePPDBAdmin, async (c) => {
 // ════════════════════════════════════════════════════════
 
 ppdb.get('/waves', getCurrentUser, requirePPDBAdmin, async (c) => {
-  const periodId = c.req.query('period_id')
+  let periodId = c.req.query('period_id')
   const page = parseInt(c.req.query('page') || '1')
   const perPage = parseInt(c.req.query('perPage') || '20')
   const search = c.req.query('search') || ''
 
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
   const filters: Record<string, unknown> = {}
-  if (periodId) filters.period_id = periodId
+  if (periodId && periodId !== 'all') filters.period_id = periodId
 
   const result = await searchPaginated('ppdb_waves', {
     search,
@@ -561,9 +567,19 @@ ppdb.get('/applicants', getCurrentUser, requirePPDBAdmin, async (c) => {
   const perPage = parseInt(c.req.query('perPage') || '20')
   const search = c.req.query('search') || ''
   const status = c.req.query('status') || ''
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
 
   const filters: Record<string, unknown> = {}
   if (status) filters.current_status = status
+  
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    filters.wave_config_id = waveConfigIds
+  }
 
   const result = await searchPaginated('applicants', { search, columns: ['registration_number'], page, perPage, filters, order: 'created_at.desc' })
 
@@ -969,9 +985,31 @@ ppdb.get('/admin/documents/review', getCurrentUser, requirePPDBAdmin, async (c) 
   const status = c.req.query('status') || 'uploaded'
   const page = parseInt(c.req.query('page') || '1')
   const perPage = parseInt(c.req.query('perPage') || '20')
+  let periodId = c.req.query('period_id')
+  
+  if (!periodId && periodId !== 'all') {
+    periodId = await getActivePeriodId() || ''
+  }
+
+  const filters: Record<string, unknown> = { status }
+
+  if (periodId && periodId !== 'all') {
+    const waveConfigIds = await getWaveConfigIdsForPeriod(periodId)
+    if (waveConfigIds.length > 0) {
+      const placeholders = waveConfigIds.map(() => '?').join(',')
+      const [appRows] = await getRawPool().execute<any[]>(
+        `SELECT id FROM applicants WHERE wave_config_id IN (${placeholders})`,
+        waveConfigIds
+      )
+      const appIds = appRows.map((r: any) => r.id)
+      filters.applicant_id = appIds
+    } else {
+      filters.applicant_id = []
+    }
+  }
 
   const result = await searchPaginated('applicant_documents', {
-    filters: { status },
+    filters,
     page,
     perPage,
     order: 'created_at.asc',
