@@ -415,22 +415,6 @@ async function main() {
         { id: 'page-ppdb-settings', key: 'settings', label: 'Pengaturan', icon: 'Settings', sort_order: 6 },
       ],
     },
-    {
-      id: 'mod-students', key: 'students', name: 'Students',
-      pages: [
-        { id: 'page-students-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', sort_order: 1 },
-        { id: 'page-students-list', key: 'list', label: 'Data Siswa', icon: 'Users', sort_order: 2 },
-        { id: 'page-students-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', sort_order: 3 },
-      ],
-    },
-    {
-      id: 'mod-kunjungan', key: 'kunjungan', name: 'Kunjungan',
-      pages: [
-        { id: 'page-kunjungan-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', sort_order: 1 },
-        { id: 'page-kunjungan-schedule', key: 'schedule', label: 'Jadwal', icon: 'Calendar', sort_order: 2 },
-        { id: 'page-kunjungan-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', sort_order: 3 },
-      ],
-    },
   ]
 
   for (const mod of modulesData) {

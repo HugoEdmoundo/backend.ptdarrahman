@@ -34,16 +34,6 @@ async function main() {
       { id: 'page-ppdb-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', so: 5 },
       { id: 'page-ppdb-settings', key: 'settings', label: 'Pengaturan', icon: 'Settings', so: 6 },
     ]},
-    { id: 'mod-students', key: 'students', name: 'Students', pages: [
-      { id: 'page-students-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', so: 1 },
-      { id: 'page-students-list', key: 'list', label: 'Data Siswa', icon: 'Users', so: 2 },
-      { id: 'page-students-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', so: 3 },
-    ]},
-    { id: 'mod-kunjungan', key: 'kunjungan', name: 'Kunjungan', pages: [
-      { id: 'page-kunjungan-dashboard', key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', so: 1 },
-      { id: 'page-kunjungan-schedule', key: 'schedule', label: 'Jadwal', icon: 'Calendar', so: 2 },
-      { id: 'page-kunjungan-reports', key: 'reports', label: 'Laporan', icon: 'BarChart3', so: 3 },
-    ]},
   ]
 
   // Create tables

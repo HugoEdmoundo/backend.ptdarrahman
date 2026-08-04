@@ -9,8 +9,6 @@ export enum AccessLevel {
 
 export enum Module {
   COMPANYPROFILE = 'companyprofile',
-  STUDENTS = 'students',
-  KUNJUNGAN = 'kunjungan',
   PPDB = 'ppdb',
 }
 
@@ -18,8 +16,6 @@ const LEVEL_ORDER = [AccessLevel.NONE, AccessLevel.DASHBOARD, AccessLevel.READ, 
 
 export const DEFAULT_PERMISSIONS: Record<string, AccessLevel> = {
   [Module.COMPANYPROFILE]: AccessLevel.NONE,
-  [Module.STUDENTS]: AccessLevel.NONE,
-  [Module.KUNJUNGAN]: AccessLevel.NONE,
   [Module.PPDB]: AccessLevel.NONE,
 }
 

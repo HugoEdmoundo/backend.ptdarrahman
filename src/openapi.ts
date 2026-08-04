@@ -895,26 +895,6 @@ Login attempts are rate-limited to prevent brute-force attacks.`,
       },
     },
 
-    // ── SPP ────────────────────────────────────────────────
-    '/spp': {
-      get: {
-        summary: 'List SPP',
-        tags: ['SPP'],
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'SPP list' } },
-      },
-    },
-
-    // ── Students ───────────────────────────────────────────
-    '/students': {
-      get: {
-        summary: 'List Students',
-        tags: ['Students'],
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Student list' } },
-      },
-    },
-
     // ── Auth ───────────────────────────────────────────────
     '/auth/login': {
       post: {
