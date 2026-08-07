@@ -51,7 +51,7 @@ async function requireCpCrud(c: any, next: any) {
 
 // ── SSE (Server-Sent Events) ─────────────────────────────
 
-cp.get('/events', getCurrentUser, async (c) => handleSSE(c, 'companyprofile'))
+cp.get('/events', async (c) => handleSSE(c, 'companyprofile'))
 
 // ── Upload ────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
     'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
     [user.id] as any
   )
-  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, page_permissions: pagePerms.map((r: any) => r.page_id), user_type: user.user_type || 'admin', is_active: user.is_active ?? true, is_superadmin: isSuperAdmin })
+  return c.json({ id: user.id, username: user.username, email: user.email || '', full_name: user.full_name || '', avatar_url: user.avatar_url || '', role_id: roleId, role_name: roleName, permissions: rolePermissions, page_permissions: pagePerms.map((r: any) => r.page_id), user_type: user.user_type || 'admin', is_active: user.is_active ?? true, is_superadmin: isSuperAdmin || user.user_type === 'superadmin' })
 })
 
 cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: z.string().optional(), email: z.string().optional(), full_name: z.string().optional(), avatar_url: z.string().optional(), old_password: z.string().optional(), new_password: z.string().optional() })), async (c) => {

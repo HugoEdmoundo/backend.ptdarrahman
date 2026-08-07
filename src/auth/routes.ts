@@ -62,9 +62,9 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     throw new HTTPException(401, { message: 'Invalid refresh token' })
   }
 
-  const expires = stored.expires_at as string | undefined
+  const expires = stored.expires_at as string | Date | undefined
   if (expires) {
-    const expiresDt = new Date(expires.replace('Z', '+00:00'))
+    const expiresDt = typeof expires === 'string' ? new Date(expires.replace('Z', '+00:00')) : expires
     if (expiresDt < new Date()) {
       throw new HTTPException(401, { message: 'Refresh token expired' })
     }
@@ -125,7 +125,7 @@ auth.get('/me', getCurrentUser, async (c) => {
     page_permissions: pagePerms.map(r => r.key),
     user_type: user.user_type || 'admin',
     is_active: user.is_active ?? true,
-    is_superadmin: isSuperAdmin,
+    is_superadmin: isSuperAdmin || user.user_type === 'superadmin',
   })
 })
 

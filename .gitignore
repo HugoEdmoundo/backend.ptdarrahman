@@ -5,3 +5,7 @@ dist/
 api/*.js
 src/**/*.js
 *.js.map
+
+# logs & manual test scripts
+*.log
+test_*.js

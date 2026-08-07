@@ -10,11 +10,7 @@ import rolesRoutes from './roles/routes'
 import superadminRoutes from './superadmin/routes'
 import modulesRoutes from './modules/routes'
 import ppdbRoutes from './ppdb/routes'
-import paymentRoutes from './ppdb/payment.routes'
-import selectionRoutes from './ppdb/selection.routes'
-import postRoutes from './ppdb/post.routes'
-import notifRoutes from './ppdb/notif.routes'
-import dashboardRoutes from './ppdb/dashboard.routes'
+import dashboardRoutes from './dashboard/routes'
 
 const app = new Hono()
 
@@ -48,11 +44,7 @@ app.route('/superadmin', superadminRoutes)
 app.route('/companyprofile', companyprofileRoutes)
 app.route('/modules', modulesRoutes)
 app.route('/ppdb', ppdbRoutes)
-app.route('/payment', paymentRoutes)
-app.route('/selection', selectionRoutes)
-app.route('/notif', notifRoutes)
 app.route('/dashboard', dashboardRoutes)
-app.route('/post', postRoutes)
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) return c.json({ detail: err.message }, err.status)

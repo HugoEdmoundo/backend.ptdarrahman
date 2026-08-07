@@ -107,7 +107,7 @@ export async function loginUser(
       permissions: rolePermissions,
       page_permissions: pagePerms.map((r: any) => r.page_id),
       user_type: user.user_type || 'admin',
-      is_superadmin: isSuperAdmin,
+      is_superadmin: isSuperAdmin || user.user_type === 'superadmin',
     },
   }
 

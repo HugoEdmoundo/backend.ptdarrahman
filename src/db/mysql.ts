@@ -261,8 +261,3 @@ export async function getActivePeriodId(): Promise<string | null> {
   return rows.length > 0 ? rows[0].id : null
 }
 
-export async function getWaveConfigIdsForPeriod(periodId: string): Promise<string[]> {
-  const pool = getRawPool()
-  const [rows] = await pool.execute<any[]>('SELECT wc.id FROM wave_configurations wc JOIN ppdb_waves w ON wc.wave_id = w.id WHERE w.period_id = ?', [periodId])
-  return rows.map((r: any) => r.id)
-}
