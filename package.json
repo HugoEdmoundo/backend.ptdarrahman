@@ -9,6 +9,7 @@
     "lint": "eslint src/ api/"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.0",
     "@hono/zod-validator": "^0.8.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.6.1",

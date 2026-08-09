@@ -4,17 +4,7 @@ const clients = new Map<string, { module: string; enqueue: (data: string) => voi
 
 let nextId = 0
 
-const CLIENT_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
-
-setInterval(() => {
-  const now = Date.now()
-  for (const [id, client] of clients) {
-    if (now - client.lastActivity > CLIENT_TIMEOUT_MS) {
-      try { client.cancel() } catch { /* ignore */ }
-      clients.delete(id)
-    }
-  }
-}, 60_000)
+// Cleanup is now handled on new connections or emits to avoid top-level timers
 
 export function emit(module: string, event: string, data: string = '') {
   const msg = `event: ${event}\ndata: ${data}\n\n`
