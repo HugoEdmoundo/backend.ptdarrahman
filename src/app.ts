@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { serveStatic } from 'hono/bun'
 import { HTTPException } from 'hono/http-exception'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { config } from './config'
 
 import companyprofileRoutes from './companyprofile/routes'
 import authRoutes from './auth/routes'
@@ -21,7 +23,26 @@ app.use('*', cors({
   exposeHeaders: ['*'],
 }))
 
-app.get('/uploads/*', serveStatic({ root: './' }))
+app.get('/uploads/*', async (c) => {
+  const filename = c.req.path.replace(/^\/uploads\//, '')
+  if (!filename || filename.includes('..') || filename.includes('/')) {
+    return c.json({ detail: 'Not Found' }, 404)
+  }
+  const dir = process.env.VERCEL ? '/tmp/uploads' : (config.uploadDir || 'uploads')
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  const types: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+  }
+  try {
+    const data = await readFile(join(dir, filename))
+    return c.body(data, 200, {
+      'Content-Type': types[ext] || 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000',
+    })
+  } catch {
+    return c.json({ detail: 'Not Found' }, 404)
+  }
+})
 
 app.get('/', (c) => c.json({
   message: "Pesantren Tahfidz Qur'an dan Digital Arrahman API",
