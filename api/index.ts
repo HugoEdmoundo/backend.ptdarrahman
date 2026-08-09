@@ -14,8 +14,13 @@ module.exports = async function (req: any, res: any) {
       init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
     }
 
-    const appModule = await import('../src/app')
-    const app = appModule.default
+    let appModule;
+    try {
+      appModule = require('../src/app')
+    } catch (reqErr: any) {
+      throw new Error(`Require failed: ${reqErr.message}`)
+    }
+    const app = appModule.default || appModule
 
     const request = new Request(url, init)
     const response = await app.fetch(request)
