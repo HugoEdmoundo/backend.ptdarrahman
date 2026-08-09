@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
+    "build": "mkdir -p public && echo 'Skipping tsc to avoid memory limits'",
     "deploy:cf": "wrangler deploy",
     "seed": "bun run src/seed.ts",
     "lint": "eslint src/ api/"
