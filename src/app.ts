@@ -70,7 +70,7 @@ app.route('/dashboard', dashboardRoutes)
 app.onError((err, c) => {
   if (err instanceof HTTPException) return c.json({ detail: err.message }, err.status)
   console.error('Unhandled error:', err)
-  return c.json({ detail: 'Internal Server Error' }, 500)
+  return c.json({ detail: 'Internal Server Error', error: err.message, stack: err.stack }, 500)
 })
 
 app.notFound((c) => c.json({ detail: 'Not Found' }, 404))
