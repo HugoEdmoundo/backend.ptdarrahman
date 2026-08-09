@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { config } from './config'
+import { openapiSpec } from './openapi'
 
 import companyprofileRoutes from './companyprofile/routes'
 import authRoutes from './auth/routes'
@@ -49,8 +50,7 @@ app.get('/', (c) => c.json({
   status: 'ok',
 }))
 
-app.get('/openapi.json', async (c) => {
-  const { openapiSpec } = await import('./openapi')
+app.get('/openapi.json', (c) => {
   return c.json(openapiSpec)
 })
 

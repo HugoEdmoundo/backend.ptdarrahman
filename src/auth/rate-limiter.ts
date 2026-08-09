@@ -1,12 +1,12 @@
 import { Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
+import { getRawPool } from '../db/mysql'
 
 const inMemoryStore = new Map<string, number[]>()
 let dbAvailable = false
 
 async function ensureTable(): Promise<void> {
   try {
-    const { getRawPool } = await import('../db/mysql')
     const pool = getRawPool()
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS rate_limits (
@@ -34,7 +34,6 @@ async function isRateLimited(key: string, maxRequests: number, windowSeconds: nu
 
   if (dbAvailable) {
     try {
-      const { getRawPool } = await import('../db/mysql')
       const pool = getRawPool()
       const [rows] = await pool.execute<any[]>(
         'SELECT timestamp FROM rate_limits WHERE `key` = ? AND timestamp > ? ORDER BY timestamp ASC',

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { getCurrentUser, requireSuperadmin } from '../middleware/auth'
 import { listAll, getById, createRecord, updateRecord, deleteRecord, searchPaginated, getRawPool } from '../db/mysql'
-import { hashPassword } from '../auth/auth'
+import { hashPassword, verifyToken } from '../auth/auth'
 import { handleSSE, emit } from '../sse'
 import type { Variables } from '../types'
 import type { RowDataPacket } from 'mysql2/promise'
@@ -170,7 +170,6 @@ users.get('/:id/events', async (c) => {
   
   if (token) {
     try {
-      const { verifyToken } = await import('../auth/auth')
       const payload = await verifyToken(token)
       if (!payload || payload.sub !== userId) {
         throw new HTTPException(403, { message: 'Forbidden' })
@@ -185,7 +184,6 @@ users.get('/:id/events', async (c) => {
       throw new HTTPException(401, { message: 'Missing token' })
     }
     try {
-      const { verifyToken } = await import('../auth/auth')
       const payload = await verifyToken(auth.slice(7))
       if (!payload || payload.sub !== userId) {
         throw new HTTPException(403, { message: 'Forbidden' })

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { createAccessToken, generateRefreshToken, hashRefreshToken } from '../auth/auth'
+import { createAccessToken, generateRefreshToken, hashRefreshToken, verifyPassword, hashPassword } from '../auth/auth'
 import { loginUser } from '../auth/login'
 import { AccessLevel, Module, hasModuleAccess } from '../auth/permissions'
 import { loginLimiter } from '../auth/rate-limiter'
@@ -13,6 +13,7 @@ import {
   toMysqlDatetime,
 } from '../db/mysql'
 import { deleteUpload, publicUrl, saveUpload } from '../storage'
+import { getRawPool } from '../db/mysql'
 import { handleSSE, emit } from '../sse'
 import type { Variables } from '../types'
 
@@ -122,7 +123,7 @@ cp.post('/auth/refresh', zValidator('json', z.object({ refresh_token: z.string()
 
 cp.post('/auth/logout', getCurrentUser, async (c) => {
   const user = c.get('user')
-  const pool = (await import('../db/mysql')).getRawPool()
+  const pool = getRawPool()
   await pool.execute('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?', [user.id] as any)
   return c.json({ message: 'Logged out' })
 })
@@ -141,7 +142,7 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
       isSuperAdmin = !!(role as any).is_superadmin
     }
   }
-  const pool = (await import('../db/mysql')).getRawPool()
+  const pool = getRawPool()
   const [pagePerms] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>(
     'SELECT page_id FROM user_page_permissions WHERE user_id = ?',
     [user.id] as any
@@ -152,7 +153,6 @@ cp.get('/auth/me', getCurrentUser, async (c) => {
 cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: z.string().optional(), email: z.string().optional(), full_name: z.string().optional(), avatar_url: z.string().optional(), old_password: z.string().optional(), new_password: z.string().optional() })), async (c) => {
   const body = c.req.valid('json')
   const user = c.get('user')
-  const { verifyPassword, hashPassword } = await import('../auth/auth')
   const data: Record<string, unknown> = {}
   if (body.username !== undefined) data.username = body.username
   if (body.email !== undefined) data.email = body.email
@@ -174,7 +174,7 @@ cp.put('/auth/profile', getCurrentUser, zValidator('json', z.object({ username: 
   }
   if (Object.keys(data).length > 0) await updateRecord('users', user.id as string, data)
   if (body.new_password) {
-    const pool = (await import('../db/mysql')).getRawPool()
+  const pool = getRawPool()
     const [rows] = await pool.execute<(import('mysql2/promise').RowDataPacket[])>('SELECT id FROM refresh_tokens WHERE user_id = ?', [user.id] as any)
     for (const row of rows) await updateRecord('refresh_tokens', row.id, { revoked: true })
   }

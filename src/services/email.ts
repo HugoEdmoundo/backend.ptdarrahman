@@ -1,13 +1,12 @@
-import type { Resend as ResendType } from 'resend'
+import { Resend } from 'resend'
 
-let resend: ResendType | null = null
+let resend: Resend | null = null
 
-async function getResend(): Promise<ResendType | null> {
+async function getResend(): Promise<Resend | null> {
   if (resend) return resend
   const key = process.env.RESEND_API_KEY
   if (!key) return null
-  const mod = await import('resend')
-  resend = new mod.Resend(key)
+  resend = new Resend(key)
   return resend
 }
 
