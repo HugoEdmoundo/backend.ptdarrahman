@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
+    "build": "echo 'Skipping tsc'",
     "deploy:cf": "wrangler deploy",
     "seed": "bun run src/seed.ts",
     "lint": "eslint src/ api/"
