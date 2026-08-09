@@ -1,5 +1,4 @@
-import app from '../src/app'
-
+// Dynamic import inside handler to catch initialization errors
 module.exports = async function (req: any, res: any) {
   try {
     const protocol = req.headers['x-forwarded-proto'] || 'https'
@@ -14,6 +13,9 @@ module.exports = async function (req: any, res: any) {
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
       init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
     }
+
+    const appModule = await import('../src/app')
+    const app = appModule.default
 
     const request = new Request(url, init)
     const response = await app.fetch(request)
