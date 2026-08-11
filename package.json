@@ -1,11 +1,11 @@
 {
   "name": "backend-ptdarrahman",
   "version": "1.0.1",
-  "type": "module",
+  "main": "src/index.ts",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "node api/index.js",
-    "build": "npx esbuild ./src/vercel.ts --bundle --platform=node --target=node22 --outfile=api/index.js --packages=external --format=esm && mkdir -p public && echo 'API Ready' > public/index.html",
+    "build": "npx esbuild ./src/vercel.ts --bundle --platform=node --target=node22 --outfile=api/index.js --packages=external --format=cjs && mkdir -p public && echo 'API Ready' > public/index.html",
     "deploy:cf": "wrangler deploy",
     "seed": "bun run src/seed.ts",
     "lint": "eslint src/ api/"
