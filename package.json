@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run src/index.ts",
-    "build": "mkdir -p public && echo 'API Ready' > public/index.html && echo 'Skipping tsc to avoid memory limits'",
+    "start": "node api/index.js",
+    "build": "npx esbuild ./src/vercel.ts --bundle --platform=node --target=node22 --outfile=api/index.js --packages=external --format=esm && mkdir -p public && echo 'API Ready' > public/index.html",
     "deploy:cf": "wrangler deploy",
     "seed": "bun run src/seed.ts",
     "lint": "eslint src/ api/"
