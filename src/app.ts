@@ -17,12 +17,7 @@ import dashboardRoutes from './dashboard/routes'
 
 const app = new Hono()
 
-app.use('*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['*'],
-  exposeHeaders: ['*'],
-}))
+app.use('*', cors())
 
 app.get('/uploads/*', async (c) => {
   const filename = c.req.path.replace(/^\/uploads\//, '')
